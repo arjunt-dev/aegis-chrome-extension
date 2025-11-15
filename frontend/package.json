@@ -1,0 +1,23 @@
+{
+  "name": "aegis",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Monorepo for the Aegis Chrome Extension.",
+  "scripts": {
+    "clean": "rimraf aegis-dist",
+    "copy:static": "cpx \"static/**/*\" aegis-dist",
+    "build:packages": "pnpm --filter \"./packages/*\" build",
+    "build": "run-s clean copy:static build:packages",
+    "dev:packages": "pnpm --filter \"./packages/*\" dev",
+    "dev:static": "nodemon --watch static -e json,png --exec \"pnpm copy:static\"",
+    "dev": "run-p dev:packages dev:static"
+  },
+  "devDependencies": {
+    "cpx": "^1.5.0",
+    "esbuild": "^0.20.0",
+    "nodemon": "^3.1.0",
+    "npm-run-all": "^4.1.5",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,129 @@
+/* ===============================================
+   AEGIS THEME (Reusable Dark Theme)
+   Can be used across any React / Web application
+   =============================================== */
+
+/* Root Theme Variables */
+:root {
+  --bg-primary: #0b0f14;
+  --bg-secondary: #11161d;
+  --bg-glass: rgba(255, 255, 255, 0.06);
+
+  --text-primary: #e5e7eb;
+  --text-secondary: #9ca3af;
+
+  --accent-teal: #14b8a6;
+  --accent-red: #ef4444;
+  --accent-yellow: #f59e0b;
+
+  --radius-lg: 1rem;
+  --radius-md: 0.65rem;
+
+  --blur-glass: 14px;
+}
+
+/* Global Styles */
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Glass Effect */
+.glass {
+  background: var(--bg-glass);
+  backdrop-filter: blur(var(--blur-glass));
+}
+
+/* Buttons */
+.btn {
+  padding: 0.75rem 1.75rem;
+  border-radius: var(--radius-lg);
+  font-weight: 500;
+  transition: 0.25s ease;
+  cursor: pointer;
+}
+
+.btn-teal {
+  background: var(--accent-teal);
+  color: #fff;
+}
+.btn-teal:hover {
+  background: #2dd4bf;
+}
+
+.btn-red {
+  background: var(--accent-red);
+  color: #fff;
+}
+.btn-red:hover {
+  background: #f87171;
+}
+
+/* Input */
+.input-box {
+  background: var(--bg-secondary);
+  padding: 1rem 1.25rem;
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  transition: 0.25s ease;
+}
+
+.input-box:focus {
+  outline: none;
+  border-color: var(--accent-teal);
+}
+
+/* Top Bar */
+.topbar {
+  width: 100%;
+  padding: 0.75rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  background: transparent;
+  backdrop-filter: blur(10px);
+  z-index: 99;
+}
+
+/* Icon Buttons */
+.icon-btn {
+  padding: 0.5rem;
+  border-radius: var(--radius-md);
+  transition: 0.2s ease;
+}
+
+.icon-btn:hover {
+  background: var(--bg-glass);
+}
+
+/* Tooltip */
+.tooltip {
+  display: none;
+  position: absolute;
+  background: var(--bg-secondary);
+  padding: 0.35rem 0.6rem;
+  font-size: 0.75rem;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.3);
+}
+
+.icon-btn-group:hover .tooltip {
+  display: block;
+}
+
+/* Circular Progress (container styling only) */
+.circular-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  margin-top: 2rem;
+}
