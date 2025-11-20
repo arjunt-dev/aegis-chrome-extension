@@ -22,6 +22,7 @@ Built with modern backend, frontend, and machine learning technologies, ensuring
 
 * React (TSX)
 * React Router
+* Tailwind CSS 
 * pnpm (workspace monorepo)
 * SubtleCrypto API (AES-GCM, PBKDF2)
 * Chrome Extension APIs (Manifest v3)
