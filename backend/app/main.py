@@ -1,9 +1,12 @@
 import uvicorn
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from config import lifespan, DEBUG
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from routes import router   
+from fastapi_limiter.depends import RateLimiter
+
 app = FastAPI(
     title="Aegis",
     version="1.0.0",
@@ -12,7 +15,26 @@ app = FastAPI(
     debug=DEBUG
 )
 
+DEV_ORIGINS = [
+    "*"
+]
 
+PROD_ORIGINS = [
+    ""
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=DEV_ORIGINS if DEBUG else PROD_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+if DEBUG:
+    @app.get("/")
+    def docs_redirect():
+        return RedirectResponse("/docs")
+    
 app.include_router(router)
 
 @app.exception_handler(RequestValidationError)

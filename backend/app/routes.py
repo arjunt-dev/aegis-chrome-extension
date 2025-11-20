@@ -1,19 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException,status
-from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from predict import predict_url
 from schemas import BlocklistCreate, BlocklistItem, HistoryCreate, HistoryItem, LoginRequest, PredictionRequest, PredictionResponse, RefreshTokenRequest, SignupRequest, SignupResponse, TokenResponse,OtpVerifyRequest,OtpVerifyResponse
 from security import authenticate, create_user, get_current_user, issue_token, refresh_access_token, revoke_token, verify_otp_for_user, verify_token
 from models import Blocklist, History, User
 from tortoise.exceptions import IntegrityError
+from fastapi_limiter.depends import RateLimiter
 import signals
 
-router = APIRouter()
+router = APIRouter(prefix="/api",
+                   tags=["API"],
+    dependencies=[Depends(RateLimiter(times=10, seconds=60))]
+)
 security = HTTPBearer(auto_error=True)
-
-@router.get("/")
-def docs_redirect():
-    return RedirectResponse("/docs")
 
 @router.post("/signup", response_model=SignupResponse,status_code=status.HTTP_201_CREATED)
 async def signup(data: SignupRequest):

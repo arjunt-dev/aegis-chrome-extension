@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 import os
 from tasks import cleanup_expired_jti, cleanup_expired_otps
 from fastapi_mail import ConnectionConfig
-
+from fastapi_limiter import FastAPILimiter
+from redis.asyncio import Redis
 load_dotenv()
 
 scheduler = AsyncIOScheduler()
@@ -40,6 +41,12 @@ async def lifespan(app: FastAPI):
     """
     print("Starting up... Initializing database.")
     await init_db()
+    
+    redis = await Redis.from_url(
+        os.getenv("REDIS_URL", "redis://localhost:6379"), encoding="utf8", decode_responses=True
+    )
+
+    await FastAPILimiter.init(redis)
     scheduler.add_job(cleanup_expired_otps,
     "interval",
     minutes=5,
