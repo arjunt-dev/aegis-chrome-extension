@@ -1,11 +1,10 @@
 from datetime import timedelta
-import uuid
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from fastapi import HTTPException,status
 from fastapi.params import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from models import IssuedToken, Otp,User
+from models import Otp,User
 from utils import now_utc, validate_password_strength
 import jwt
 from config import JWT_SETTINGS, SECRET_KEY
@@ -83,30 +82,13 @@ def create_refresh_token(data: dict, expires_delta: timedelta = None):
         return None
     
 async def issue_token(user:User):
-    jti=uuid.uuid4()
-    access_token=create_access_token({"sub": str(user.id), "jti":str(jti)})
-    refresh_token,expire=create_refresh_token({"sub": str(user.id), "jti":str(jti)})
-    await IssuedToken.create(jti=str(jti), valid_until=expire)
+    access_token=create_access_token({"sub": str(user.id)})
+    refresh_token,expire=create_refresh_token({"sub": str(user.id)})
     return access_token,refresh_token
-
-async def revoke_token(jti: str) -> bool:
-    if not jti:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid token payload: JTI missing"
-        )
-
-    deleted_count = await IssuedToken.filter(jti=jti).delete()
-    if deleted_count == 0:
-        return False
-    return True
 
 async def verify_token(token: str, expected_type: str = "access"):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_SETTINGS['algorithm']])
-        jti= payload.get("jti")
-        if  await IssuedToken.filter(jti=jti).first() is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token has been revoked")
         if expected_type is not None and payload.get("type") != expected_type:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
         return payload
@@ -119,8 +101,6 @@ async def refresh_access_token(refresh_token: str):
     try:
         payload = await verify_token(refresh_token, expected_type="refresh")
         user_id = payload.get("sub")
-        jti = payload.get("jti")
-        await revoke_token(jti)
         user= await User.get(id=user_id)
         access_token,refresh_token = await issue_token(user)
         return access_token,refresh_token

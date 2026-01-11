@@ -78,8 +78,3 @@ class History(models.Model):
     
     class Meta:
         indexes = [("user", "checked_at"), ("user", "url_hash")]
-
-class IssuedToken(models.Model):
-    id = fields.IntField(pk=True)
-    jti = fields.CharField(max_length=64, unique=True)
-    valid_until = fields.DatetimeField()

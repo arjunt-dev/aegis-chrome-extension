@@ -8,7 +8,7 @@ from schemas import (
     OtpVerifyRequest, OtpVerifyResponse, RecoveryCodeVerifyRequest,
     PasswordResetRequest, PasswordResetResponse
 )
-from security import authenticate, create_user, get_current_user, issue_token, refresh_access_token, revoke_token, verify_otp_for_user, verify_token
+from security import authenticate, create_user, get_current_user, issue_token, refresh_access_token, verify_otp_for_user, verify_token
 from models import Blocklist, History, User, RecoveryCode
 from tortoise.exceptions import IntegrityError, DoesNotExist
 from fastapi_limiter.depends import RateLimiter
@@ -167,18 +167,10 @@ async def refresh_token(data: RefreshTokenRequest):
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Logout and revoke token"""
+    """Logout"""
     try:
         token = credentials.credentials
         payload = await verify_token(token, expected_type=None)
-        jti = payload.get("jti")
-
-        revoked = await revoke_token(jti)
-        if not revoked:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Token already revoked or invalid"
-            )
 
         return {"detail": "Successfully logged out"}
     except HTTPException:

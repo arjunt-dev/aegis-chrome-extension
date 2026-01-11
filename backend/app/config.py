@@ -5,7 +5,7 @@ import joblib
 from tortoise import Tortoise
 from dotenv import load_dotenv
 import os
-from tasks import cleanup_expired_jti, cleanup_expired_otps
+from tasks import cleanup_expired_otps
 from fastapi_mail import ConnectionConfig
 from fastapi_limiter import FastAPILimiter
 from redis.asyncio import Redis
@@ -51,12 +51,6 @@ async def lifespan(app: FastAPI):
     "interval",
     minutes=5,
     id="otp_cleanup_job",
-    replace_existing=True,
-    max_instances=1)
-    scheduler.add_job(cleanup_expired_jti,
-    "interval",
-    hours=1,
-    id="jti_cleanup_job",
     replace_existing=True,
     max_instances=1)
     scheduler.start()
