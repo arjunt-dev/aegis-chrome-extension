@@ -87,13 +87,13 @@ def predict_url(url: str):
         final_prob_legit = BASE_MODEL["meta_lr"].predict_proba(meta_scaled)[0, 1]
         prob_phishing = 1 - final_prob_legit
         if prob_phishing < 0.10:
-            risk = 1
+            risk = -1
             confidence = float(final_prob_legit)
         elif prob_phishing < 0.40:
             risk = 0
             confidence = max(final_prob_legit, prob_phishing)
         else:
-            risk = -1
+            risk = 1
             confidence = float(prob_phishing)
 
         # --- 5. Final JSON ---

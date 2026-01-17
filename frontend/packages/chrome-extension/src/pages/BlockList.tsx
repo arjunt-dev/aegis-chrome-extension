@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Trash2, ShieldAlert, RefreshCw } from "lucide-react";
+import Navbar from "../components/Navbar";
+import IconButton from "../components/IconButton";
 
 interface BlockItem {
   url: string;
@@ -52,19 +54,18 @@ export default function BlockList() {
 
   return (
     <div className="min-h-screen w-full bg-primary text-gray-200 px-4 py-6">
-      <div className="flex items-center justify-between mb-4">
+      <Navbar />
+      <div className="flex items-center justify-between mb-4 mt-6">
         <h1 className="text-lg font-semibold flex items-center gap-2">
           <ShieldAlert className="w-6 h-6 text-red-400" /> 
           Blocked URLs ({list.length})
         </h1>
 
-        <button
-          className="btn-teal px-4 py-2 text-sm rounded-lg flex items-center gap-2"
+        <IconButton
+          icon={RefreshCw}
+          tooltip="Refresh"
           onClick={loadBlocklist}
-        >
-          <RefreshCw className="w-4 h-4" />
-          Refresh
-        </button>
+        />
       </div>
 
       {loading ?  (
@@ -90,13 +91,11 @@ export default function BlockList() {
                 </p>
               </div>
 
-              <button
+              <IconButton
+                icon={Trash2}
+                tooltip="Unblock"
                 onClick={() => handleUnblock(item.url)}
-                className="btn-red px-3 py-1 rounded-lg text-sm ml-4 flex items-center gap-1"
-              >
-                <Trash2 className="w-3 h-3" />
-                Unblock
-              </button>
+              />
             </li>
           ))}
         </ul>

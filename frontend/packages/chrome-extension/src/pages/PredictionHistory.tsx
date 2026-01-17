@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { Trash2, History, RefreshCw } from "lucide-react";
+import Navbar from "../components/Navbar";
+import IconButton from "../components/IconButton";
 
 interface HistoryItem {
   url:  string;
@@ -56,28 +58,26 @@ export default function PredictionHistory() {
 
   return (
     <div className="min-h-screen w-full bg-primary text-gray-200 px-4 py-6">
-      <div className="flex items-center justify-between mb-4">
+      <Navbar />
+      
+      <div className="flex items-center justify-between mb-4 mt-6">
         <h1 className="text-lg font-semibold flex items-center gap-2">
           <History className="w-6 h-6 text-teal-400" /> 
           Prediction History ({history.length})
         </h1>
 
-        <div className="flex gap-2">
-          <button
-            className="btn-teal px-4 py-2 text-sm rounded-lg flex items-center gap-2"
+        <div className="flex items-center gap-2">
+          <IconButton
+            icon={RefreshCw}
+            tooltip="Refresh"
             onClick={loadHistory}
-          >
-            <RefreshCw className="w-4 h-4" />
-            Refresh
-          </button>
+          />
           
-          <button
-            className="btn-red px-4 py-2 text-sm rounded-lg flex items-center gap-2"
+          <IconButton
+            icon={Trash2}
+            tooltip="Clear All"
             onClick={clearHistory}
-          >
-            <Trash2 className="w-4 h-4" />
-            Clear All
-          </button>
+          />
         </div>
       </div>
 

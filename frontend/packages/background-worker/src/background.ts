@@ -153,14 +153,19 @@ async function addToLocalBlocklist(url: string, confidence?:  number): Promise<v
     return;
   }
   
-  blocklist.push({
+  const newItem = {
     url,
     blockedAt: new Date().toISOString(),
     confidence
-  });
+  };
+  
+  blocklist.push(newItem);
   
   await chrome.storage.local.set({ blocklist });
   console.log(`[Blocklist] Added ${url}`);
+  
+  // Update blocking rules
+  await updateBlockingRules();
 }
 
 async function isUrlBlocked(url: string): Promise<boolean> {
@@ -173,6 +178,59 @@ async function removeFromBlocklist(url: string): Promise<void> {
   const filtered = blocklist.filter(item => item.url !== url);
   await chrome.storage.local.set({ blocklist: filtered });
   console.log(`[Blocklist] Removed ${url}`);
+  
+  // Update blocking rules
+  await updateBlockingRules();
+}
+
+// ============================================
+// DECLARATIVE NET REQUEST (URL BLOCKING)
+// ============================================
+async function updateBlockingRules(): Promise<void> {
+  try {
+    const blocklist = await getLocalBlocklist();
+    
+    // Remove all existing dynamic rules
+    const existingRules = await chrome.declarativeNetRequest.getDynamicRules();
+    const existingRuleIds = existingRules.map(rule => rule.id);
+    
+    if (existingRuleIds.length > 0) {
+      await chrome.declarativeNetRequest.updateDynamicRules({
+        removeRuleIds: existingRuleIds
+      });
+    }
+    
+    // Create new rules from blocklist
+    const newRules = blocklist.map((item, index) => {
+      const urlObj = new URL(item.url);
+      const urlPattern = `*://${urlObj.hostname}/*`;
+      
+      return {
+        id: index + 1,
+        priority: 1,
+        action: {
+          type: chrome.declarativeNetRequest.RuleActionType.BLOCK
+        },
+        condition: {
+          urlFilter: urlPattern,
+          resourceTypes: [
+            chrome.declarativeNetRequest.ResourceType.MAIN_FRAME
+          ]
+        }
+      };
+    });
+    
+    if (newRules.length > 0) {
+      await chrome.declarativeNetRequest.updateDynamicRules({
+        addRules: newRules
+      });
+      console.log(`[Blocking] Updated ${newRules.length} blocking rules`);
+    } else {
+      console.log('[Blocking] No URLs to block');
+    }
+  } catch (error) {
+    console.error('[Blocking] Failed to update rules:', error);
+  }
 }
 
 // ============================================
@@ -559,7 +617,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         chrome.action.setBadgeText({ text: '⚠️', tabId });
         chrome.action.setBadgeBackgroundColor({ color: '#EF4444', tabId });
         
-        // Show warning notification
+        if (chrome.notifications) {
         chrome.notifications.create({
           type: 'basic',
           iconUrl: 'icon.png',
@@ -567,6 +625,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
           message: `This site might be malicious (${percentage}% confidence). Click to block.`,
           priority: 2
         });
+      }
         
         console.log(`[Auto-Predict] Phishing detected: ${tab.url} (${percentage}%)`);
       } else {
@@ -595,9 +654,28 @@ chrome.tabs. onRemoved.addListener((tabId) => {
 // ============================================
 // NOTIFICATION CLICK HANDLER
 // ============================================
-chrome.notifications.onClicked. addListener(async (notificationId) => {
-  // Open extension popup when notification is clicked
-  chrome.action.openPopup();
+// NOTIFICATION CLICK HANDLER
+// ============================================
+if (chrome.notifications) {
+  chrome.notifications.onClicked.addListener(async (notificationId) => {
+    // Open extension popup when notification is clicked
+    chrome.action.openPopup();
+  });
+}
+
+// ============================================
+// INITIALIZATION
+// ============================================
+
+// Initialize on extension install/update
+chrome.runtime.onInstalled.addListener(async (details) => {
+  console.log(`[Extension] ${details.reason}`);
+  await updateBlockingRules();
+  console.log("[Background Worker] Blocking rules initialized");
 });
 
-console.log("[Background Worker] Started successfully ✓");
+// Initialize on startup (browser restart)
+(async () => {
+  await updateBlockingRules();
+  console.log("[Background Worker] Started successfully ✓");
+})();

@@ -1,1 +1,14 @@
 @import "tailwindcss";
+
+/* Chrome Extension Popup Dimensions */
+body {
+  min-width: 400px;
+  max-width: 600px;
+  min-height: 500px;
+  overflow-x: hidden;
+}
+
+#root {
+  width: 100%;
+  min-height: 500px;
+}
