@@ -1,13 +1,35 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 
 interface CircularProgressProps {
   value: number;
 }
 
 const CircularProgress: React.FC<CircularProgressProps> = ({ value }) => {
+  const [animatedValue, setAnimatedValue] = useState(0);
+  
+  useEffect(() => {
+    const duration = 1500; // Animation duration in milliseconds
+    const frameRate = 60; // Frames per second
+    const totalFrames = (duration / 1000) * frameRate;
+    const increment = value / totalFrames;
+    let currentFrame = 0;
+
+    const timer = setInterval(() => {
+      currentFrame++;
+      if (currentFrame <= totalFrames) {
+        setAnimatedValue(Math.min(value, currentFrame * increment));
+      } else {
+        setAnimatedValue(value);
+        clearInterval(timer);
+      }
+    }, 1000 / frameRate);
+
+    return () => clearInterval(timer);
+  }, [value]);
+
   const radius = 60;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (value / 100) * circumference;
+  const offset = circumference - (animatedValue / 100) * circumference;
 
   return (
     <div className="circular-wrapper">
@@ -35,7 +57,7 @@ const CircularProgress: React.FC<CircularProgressProps> = ({ value }) => {
       </svg>
 
       <div className="absolute text-3xl font-semibold text-white">
-        {value}%
+        {animatedValue.toFixed(2)}%
       </div>
     </div>
   );

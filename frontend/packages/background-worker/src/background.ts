@@ -612,9 +612,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
       const { prediction, confidence } = result.data;
       
       if (prediction === 1) {
-        // Phishing detected
         const percentage = Math.round(confidence * 100);
-        chrome.action.setBadgeText({ text: '⚠️', tabId });
         chrome.action.setBadgeBackgroundColor({ color: '#EF4444', tabId });
         
         if (chrome.notifications) {

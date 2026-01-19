@@ -106,9 +106,9 @@ export default function PredictionHistory() {
                 <tr key={index} className="border-b border-gray-800">
                   <td className="py-2 px-2">
                     {item.result === 'phishing' ? (
-                      <span className="text-red-400 font-semibold">⚠️ Phishing</span>
+                      <span className="text-red-400 font-semibold">Phishing</span>
                     ) : (
-                      <span className="text-green-400 font-semibold">✓ Safe</span>
+                      <span className="text-green-400 font-semibold">Safe</span>
                     )}
                   </td>
                   <td className="py-2 px-2 font-mono text-xs">{item.url}</td>

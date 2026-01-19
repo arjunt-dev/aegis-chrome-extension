@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import AlertBanner from "../components/AlertBanner";
 
 export default function Login() {
@@ -37,7 +38,15 @@ export default function Login() {
         <button className="btn btn-teal auth-button w-full mt-2" onClick={handleLogin}>
           Login
         </button>
+
+        <p className="text-center text-sm text-gray-400 mt-3">
+          Don't have an account?{" "}
+          <Link to="/signup" className="text-teal-400 hover:text-teal-300 font-medium">
+            Sign up
+          </Link>
+        </p>
       </div>
+      
     </>
   );
 }

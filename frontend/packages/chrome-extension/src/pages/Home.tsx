@@ -9,10 +9,16 @@ export default function Home() {
   const [risk, setRisk] = useState<number | null>(null); // -1: safe, 0: suspicious, 1: phishing
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentTabUrl, setCurrentTabUrl] = useState<string>("");
   const [isBlocked, setIsBlocked] = useState(false);
 
-  // Get current tab URL on mount
+  const getBaseUrl = (urlString: string): string => {
+    try {
+      const urlObj = new URL(urlString);
+      return `${urlObj.protocol}//${urlObj.hostname}`;
+    } catch {
+      return urlString;
+    }
+  };
   useEffect(() => {
     (async () => {
       try {
@@ -25,11 +31,10 @@ export default function Home() {
           !tab.url.startsWith("chrome://") &&
           !tab.url.startsWith("chrome-extension://")
         ) {
-          setCurrentTabUrl(tab.url);
-
-          // Check if current tab is already blocked
+          setUrl(tab.url);
+          
           const response = await sendMessage("CHECK_IF_BLOCKED", {
-            url: tab.url,
+            url: getBaseUrl(tab.url),
           });
           if (response.data.isBlocked) {
             setIsBlocked(true);
@@ -63,15 +68,14 @@ export default function Home() {
       setRisk(null);
       setIsBlocked(false);
 
-      // Use manual URL or fallback to current tab
-      const urlToPredict = url.trim() || currentTabUrl;
+    
+      const urlToPredict = url.trim();
 
       if (!urlToPredict) {
         setError("No URL to analyze.  Enter a URL or navigate to a website.");
         return;
       }
 
-      // Validate URL format
       try {
         new URL(urlToPredict);
       } catch {
@@ -80,15 +84,13 @@ export default function Home() {
       }
 
       console.log("Predicting:", urlToPredict);
-      const response = await sendMessage("PREDICT_URL", { url: urlToPredict });
+      const response = await sendMessage("PREDICT_URL", { url: getBaseUrl(urlToPredict) });
 
       if (response.success) {
         const { prediction: pred, confidence } = response.data;
         console.log("Prediction result:", pred, confidence);
-        setRisk(pred); // -1: safe, 0: suspicious, 1: phishing
+        setRisk(pred);
         setPrediction(confidence * 100);
-
-        // If URL was entered manually, update the input
         if (!url.trim()) {
           setUrl(urlToPredict);
         }
@@ -103,16 +105,16 @@ export default function Home() {
 
   const handleBlock = async () => {
     try {
-      const urlToBlock = url.trim() || currentTabUrl;
+      const urlToBlock = url.trim();
 
       if (!urlToBlock) {
         setError("No URL to block");
         return;
       }
 
-      await sendMessage("ADD_TO_BLOCKLIST", { url: urlToBlock });
+      await sendMessage("ADD_TO_BLOCKLIST", { url: getBaseUrl(urlToBlock) });
       setIsBlocked(true);
-      alert(`Blocked:  ${urlToBlock}`);
+      alert(`Blocked:  ${getBaseUrl(urlToBlock)}`);
     } catch (err: any) {
       setError(err.message || "Failed to block URL");
     }
@@ -120,16 +122,16 @@ export default function Home() {
 
   const handleUnblock = async () => {
     try {
-      const urlToUnblock = url.trim() || currentTabUrl;
+      const urlToUnblock = url.trim();
 
       if (!urlToUnblock) {
         setError("No URL to unblock");
         return;
       }
 
-      await sendMessage("UNBLOCK_URL", { url: urlToUnblock });
+      await sendMessage("UNBLOCK_URL", { url: getBaseUrl(urlToUnblock) });
       setIsBlocked(false);
-      alert(`Unblocked: ${urlToUnblock}`);
+      alert(`Unblocked: ${getBaseUrl(urlToUnblock)}`);
     } catch (err: any) {
       setError(err.message || "Failed to unblock URL");
     }
@@ -138,40 +140,20 @@ export default function Home() {
   return (
     <div className="min-h-[500px] w-full bg-primary flex flex-col py-6 px-4">
       <Navbar />
-
-      {/* Current Tab Indicator */}
-      {currentTabUrl && (
-        <div className="mt-6 glass px-4 py-2 rounded-lg text-sm text-gray-300 max-w-md w-full mx-auto">
-          <span className="text-gray-400">Current Tab: </span>
-          <span className="ml-2 font-mono text-xs truncate block">
-            {currentTabUrl}
-          </span>
-        </div>
-      )}
-
-      {/* Input Section */}
-      <div className="flex flex-col items-center my-8 w-full max-w-md mx-auto">
+      <div className="flex flex-col items-center my-10 w-full max-w-md mx-auto">
         <input
           type="text"
           className="input-box w-full text-sm"
-          placeholder={
-            currentTabUrl
-              ? "Enter URL or use current tab..."
-              : "Enter URL to analyze..."
-          }
+          placeholder={"Enter URL to analyze..."}
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           disabled={loading}
         />
-
-        {/* Error Message */}
         {error && (
           <div className="mt-4 glass px-4 py-2 rounded-lg text-sm text-red-400 w-full">
-            ⚠️ {error}
+           {error}
           </div>
         )}
-
-        {/* Buttons */}
         <div className="flex gap-3 mt-6 justify-center">
           <button
             onClick={handlePredict}
@@ -199,7 +181,7 @@ export default function Home() {
           ) : (
             <button
               onClick={handleBlock}
-              disabled={loading || (!url.trim() && !currentTabUrl)}
+              disabled={loading || !url.trim()}
               className="btn btn-red flex-1 max-w-[160px]"
             >
               Block
@@ -213,14 +195,14 @@ export default function Home() {
             <div className="text-center mt-4">
               {risk === 1 ? (
                 <p className="text-red-400 text-lg font-semibold">
-                  ⚠️ Phishing
+                 Phishing
                 </p>
               ) : risk === 0 ? (
                 <p className="text-yellow-400 text-lg font-semibold">
-                  ⚠️ Suspicious
+                   Suspicious
                 </p>
               ) : (
-                <p className="text-green-400 text-lg font-semibold">✓ Safe</p>
+                <p className="text-green-400 text-lg font-semibold">Safe</p>
               )}
             </div>
           </div>
