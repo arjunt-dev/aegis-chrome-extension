@@ -13,7 +13,6 @@ class SignupRequest(BaseModel):
     confirm_password: str
     encrypted_master_key: str  # Client-encrypted master key with password-derived key
     password_salt: str  # Salt for PBKDF2 key derivation (safe to store)
-    recovery_codes: list[dict]  # Recovery codes (hashed + encrypted master key)
 
 class SignupResponse(BaseModel):
     message: str
@@ -38,6 +37,7 @@ class OtpVerifyRequest(BaseModel):
 
 class OtpVerifyResponse(BaseModel):
     message: str
+    recovery_codes: list[str]
 
 class TokenResponse(BaseModel):
     access_token: str

@@ -1,5 +1,4 @@
-import { deriveKeyFromPassword, encryptData, decryptData } from "./utils/mask";
-import { encode, decode } from "../../shared/z85";
+import { deriveKeyFromPassword, encryptData, decryptData,retrieveKey,storeKey } from "../../shared/src/mask";
 import axios from "axios";
 
 // ============================================
@@ -98,37 +97,7 @@ axios.interceptors. response.use(
 // ============================================
 // ENCRYPTION KEY MANAGEMENT
 // ============================================
-async function generateSalt(): Promise<Uint8Array> {
-  return crypto.getRandomValues(new Uint8Array(16));
-}
 
-async function storeKey(password: string, salt: Uint8Array): Promise<void> {
-  const key = await deriveKeyFromPassword(password, salt);
-  const jwk = await crypto.subtle.exportKey("jwk", key);
-  const jwkString = JSON.stringify(jwk);
-  const encodedKey = encode(jwkString);
-  await chrome.storage.local. set({ 
-    key: encodedKey,
-    salt: Array.from(salt)
-  });
-}
-
-async function retrieveKey(): Promise<CryptoKey> {
-  const stored = await chrome.storage.local. get("key");
-  if (!stored.key) throw new Error('No encryption key found');
-  
-  const decodedBytes = decode(stored.key);
-  const decodedString = new TextDecoder().decode(decodedBytes);
-  const decodedJwk = JSON.parse(decodedString);
-  
-  return await crypto.subtle.importKey(
-    "jwk",
-    decodedJwk,
-    { name: "AES-GCM" },
-    false,
-    ["encrypt", "decrypt"]
-  );
-}
 
 // ============================================
 // BLOCKLIST MANAGEMENT (LOCAL)
@@ -296,7 +265,6 @@ async function signup(payload: {
   confirm_password: string;
   encrypted_master_key: string;
   password_salt: string;
-  recovery_codes: any[];
 }): Promise<ApiResponse> {
   try {
     const { data } = await axios.post('/signup', payload);

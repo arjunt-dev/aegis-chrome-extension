@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import AlertBanner from "../components/AlertBanner";
-
+import { authApi } from "../api";
+import { useNavigate } from "react-router";
 export default function Login() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [pass, setPass] = useState("");
   const [alert, setAlert] = useState<{ type: string; msg: string } | null>(null);
@@ -10,8 +12,17 @@ export default function Login() {
   const handleLogin = () => {
     if (!email || !pass)
       return setAlert({ type: "error", msg: "Email and password required." });
-
-    setAlert({ type: "success", msg: "Logged in successfully!" });
+    authApi
+      .login({email, password: pass})
+      .then(() => { 
+        setAlert({ type: "success", msg: "Logged in successfully!" });
+        setTimeout(() => {
+          navigate("/otp");
+        },2000);
+      })
+      .catch((error) => {
+        setAlert({ type: "error", msg: error instanceof Error ? error.message : "Login failed." });
+      });
   };
 
   return (

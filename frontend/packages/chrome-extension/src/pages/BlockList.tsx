@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Trash2, ShieldAlert, RefreshCw } from "lucide-react";
 import Navbar from "../components/Navbar";
 import IconButton from "../components/IconButton";
+import { sendMessage } from "../../../shared/src/messenger";
 
 interface BlockItem {
   url: string;
@@ -29,19 +30,7 @@ export default function BlockList() {
     loadBlocklist();
   }, []);
 
-  const sendMessage = (type: string, payload?: any): Promise<any> => {
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ type, payload }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-        } else if (!response.success) {
-          reject(new Error(response.error));
-        } else {
-          resolve(response);
-        }
-      });
-    });
-  };
+  
 
   const handleUnblock = async (url: string) => {
     try {

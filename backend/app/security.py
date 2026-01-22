@@ -19,7 +19,6 @@ async def create_user(email: str, password: str, encrypted_master_key: str, pass
     Server never sees the master key or secret
     """
     try:
-        import secrets
         
         validate_password_strength(password)
         

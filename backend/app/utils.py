@@ -7,6 +7,7 @@ from models import Otp
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from config import TIMEZONE
+from argon2 import PasswordHasher
 
 APP_TIMEZONE = ZoneInfo(TIMEZONE)
 
@@ -32,6 +33,51 @@ async def create_otp_for_user(user):
     await Otp.create(user=user, code=otp_code, expires_at=expires_at, is_used=False)
     return otp_code
 
+def validate_password_strength(password: str):
+    if len(password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Password must be at least 8 characters long.")
+    if re.search(r"\s", password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Password must not contain spaces.")
+    if not re.search(r"[A-Z]", password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Password must contain at least one uppercase letter.")
+    if not re.search(r"[a-z]", password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Password must contain at least one lowercase letter.")
+    if not re.search(r"[0-9]", password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Password must contain at least one digit.")
+
+def generate_recovery_codes(count: int = 2) -> list[str]:
+    """Generate cryptographically secure recovery codes"""
+    codes = set()
+    chars = '234567890ABCDEFGHJKMNPQRSTUVWXYZ'  # No 0, O, I, L, 1 to avoid confusion
+    
+    while len(codes) < count:
+        random_bytes = secrets.token_bytes(16)
+        code = ''.join(chars[b % len(chars)] for b in random_bytes[:16])
+        formatted_code = '-'.join([code[i:i+4] for i in range(0, 16, 4)])
+        codes.add(formatted_code)
+    
+    return list(codes)
+
+async def hash_and_store_recovery_codes(user, codes: list[str], encrypted_master_key: str):
+    from models import RecoveryCode
+    ph = PasswordHasher()
+    
+    stored_codes = []
+    for code in codes:
+        code_hash = ph.hash(code.encode('utf-8'))
+        recovery_code = await RecoveryCode.create(
+            user=user,
+            code_hash=code_hash,
+            encrypted_master_key=encrypted_master_key
+        )
+        stored_codes.append(recovery_code)
+    
+    return stored_codes
 def validate_password_strength(password: str):
     if len(password) < 8:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,

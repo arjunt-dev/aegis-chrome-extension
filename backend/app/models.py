@@ -24,8 +24,8 @@ class RecoveryCode(models.Model):
     """One-time recovery codes for password reset"""
     id = fields.IntField(pk=True)
     user = fields.ForeignKeyField("models.User", related_name='recovery_codes', on_delete=fields.CASCADE)
-    code_hash = fields.CharField(max_length=128)  # Hashed recovery code
-    encrypted_master_key = fields.TextField()  # Master key encrypted with this recovery code
+    code_hash = fields.CharField(max_length=128) 
+    encrypted_master_key = fields.TextField()
     is_used = fields.BooleanField(default=False)
     created_at = fields.DatetimeField(auto_now_add=True)
     used_at = fields.DatetimeField(null=True)

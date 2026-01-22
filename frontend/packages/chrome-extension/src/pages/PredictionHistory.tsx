@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Trash2, History, RefreshCw } from "lucide-react";
 import Navbar from "../components/Navbar";
 import IconButton from "../components/IconButton";
+import { sendMessage } from "../../../shared/src/messenger";
 
 interface HistoryItem {
   url:  string;
@@ -31,19 +32,6 @@ export default function PredictionHistory() {
     loadHistory();
   }, []);
 
-  const sendMessage = (type: string, payload?: any): Promise<any> => {
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ type, payload }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-        } else if (!response.success) {
-          reject(new Error(response.error));
-        } else {
-          resolve(response);
-        }
-      });
-    });
-  };
 
   const clearHistory = async () => {
     if (! confirm('Are you sure you want to clear all history?')) return;

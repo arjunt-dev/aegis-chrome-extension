@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import CircularProgress from "../components/CircularProgress";
+import { sendMessage } from "../../../shared/src/messenger";
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -45,20 +46,6 @@ export default function Home() {
       }
     })();
   }, []);
-
-  const sendMessage = (type: string, payload?: any): Promise<any> => {
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ type, payload }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-        } else if (!response.success) {
-          reject(new Error(response.error));
-        } else {
-          resolve(response);
-        }
-      });
-    });
-  };
 
   const handlePredict = async () => {
     try {

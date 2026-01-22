@@ -1,3 +1,6 @@
+/// <reference types="chrome"/>
+
+import { decode, encode } from "./z85";
 
 const CRYPTO = globalThis.crypto || (self as any).crypto;
 
@@ -20,8 +23,8 @@ export async function deriveKeyFromPassword(
   return await CRYPTO.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt,
-      iterations: 200000,
+      salt: salt as BufferSource,
+      iterations: 310000,
       hash: "SHA-256",
     },
     keyMaterial,
@@ -57,9 +60,9 @@ export async function decryptData(
   const ciphertext = hexToBuffer(payload.ciphertext);
 
   const decryptedBuffer = await CRYPTO.subtle.decrypt(
-    { name: "AES-GCM", iv },
+    { name: "AES-GCM", iv:iv as BufferSource },
     key,
-    ciphertext
+    ciphertext as BufferSource
   );
 
   return new TextDecoder().decode(decryptedBuffer);
@@ -75,4 +78,36 @@ export function hexToBuffer(hexString: string): Uint8Array {
   const matches = hexString.match(/.{1,2}/g);
   if (!matches) throw new Error("Invalid hex string");
   return new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
+}
+
+export async function generateSalt(): Promise<Uint8Array> {
+  return crypto.getRandomValues(new Uint8Array(16));
+}
+
+export async function storeKey(password: string, salt: Uint8Array): Promise<void> {
+  const key = await deriveKeyFromPassword(password, salt);
+  const jwk = await crypto.subtle.exportKey("jwk", key);
+  const jwkString = JSON.stringify(jwk);
+  const encodedKey = encode(jwkString);
+  await chrome.storage.local. set({ 
+    key: encodedKey,
+    salt: Array.from(salt)
+  });
+}
+
+export async function retrieveKey(): Promise<CryptoKey> {
+  const stored = await chrome.storage.local. get("key");
+  if (!stored.key) throw new Error('No encryption key found');
+  
+  const decodedBytes = decode(stored.key);
+  const decodedString = new TextDecoder().decode(decodedBytes);
+  const decodedJwk = JSON.parse(decodedString);
+  
+  return await crypto.subtle.importKey(
+    "jwk",
+    decodedJwk,
+    { name: "AES-GCM" },
+    false,
+    ["encrypt", "decrypt"]
+  );
 }

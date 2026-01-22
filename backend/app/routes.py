@@ -50,18 +50,10 @@ async def signup(data: SignupRequest):
                 status_code=status.HTTP_400_BAD_REQUEST, 
                 detail="User creation failed"
             )
-        
-        # Store recovery codes (encrypted master key with recovery code wrapper)
-        for recovery_data in data.recovery_codes:
-            await RecoveryCode.create(
-                user=user,
-                code_hash=recovery_data['code_hash'],
-                encrypted_master_key=recovery_data['encrypted_master_key']
-            )
-        
+
         print(f"User signed up: {user.email}")
         return SignupResponse(
-            message="User created successfully. Save your recovery codes!",
+            message="OTP sent to your email. Please verify to complete registration.",
             email=user.email
         )
     except IntegrityError:
@@ -117,7 +109,7 @@ async def login(data: LoginRequest):
 @router.post("/verify", response_model=OtpVerifyResponse, status_code=status.HTTP_200_OK,
              dependencies=[Depends(RateLimiter(times=10, seconds=60))])
 async def verify(data: OtpVerifyRequest):
-    """Verify OTP to activate account"""
+    """Verify OTP to activate account and generate recovery codes"""
     try:
         user = await User.get_or_none(email=data.email)
         if not user:
@@ -133,7 +125,23 @@ async def verify(data: OtpVerifyRequest):
                 detail="Invalid or expired OTP"
             )
         
-        return OtpVerifyResponse(message="Account verified successfully")
+        # Generate recovery codes server-side after successful verification
+        from utils import generate_recovery_codes, hash_and_store_recovery_codes
+        recovery_codes = generate_recovery_codes(count=2)
+        
+        # Store hashed codes with encrypted master key
+        await hash_and_store_recovery_codes(
+            user=user,
+            codes=recovery_codes,
+            encrypted_master_key=user.encrypted_master_key
+        )
+        
+        print(f"Recovery codes generated for {user.email}")
+        
+        return OtpVerifyResponse(
+            message="Account verified successfully. Save your recovery codes!",
+            recovery_codes=recovery_codes
+        )
     except HTTPException:
         raise
     except Exception as e:
