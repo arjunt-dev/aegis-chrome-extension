@@ -13,30 +13,25 @@ from tortoise.exceptions import DoesNotExist
 ph = PasswordHasher()
 security = HTTPBearer()
 
-async def create_user(email: str, password: str, encrypted_master_key: str, password_salt: str):
-    """
-    Create user with zero-knowledge architecture
-    Server never sees the master key or secret
-    """
-    try:
-        import secrets
-        
-        validate_password_strength(password)
-        
-        # Hash password for authentication (separate from encryption)
-        password_hash = ph.hash(password.strip().encode('utf-8'))
-        
-        user = await User.create(
-            email=email,
-            password=password_hash,
-            password_salt=password_salt,
-            encrypted_master_key=encrypted_master_key,
-            master_key_version=1
-        )
-        return user, password_salt
-    except Exception as e:
-        print(f"Error creating user: {e}")
-        return None, None
+async def create_user(
+    email: str,
+    password: str,
+    salt: str,
+    enc_master_user: dict
+):
+    validate_password_strength(password)
+
+    password_hash = ph.hash(password.strip().encode("utf-8"))
+
+    user = await User.create(
+        email=email,
+        password=password_hash,
+        password_salt=salt,
+        encrypted_master_key=enc_master_user,
+        is_active=False
+    )
+
+    return user
 
 async def authenticate(email: str, password: str):
     try:

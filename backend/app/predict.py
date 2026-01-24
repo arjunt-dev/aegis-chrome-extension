@@ -1,13 +1,10 @@
 import math
 import re
 from urllib.parse import urlparse
-from fastapi import HTTPException,status
 import pandas as pd
 from config import BASE_MODEL, META_MODEL
 from urllib.parse import urlparse, parse_qs
 import tldextract
-import whois
-from datetime import datetime,timezone
     
 def extract_features_from_url(url: str):
     parsed = urlparse(url)

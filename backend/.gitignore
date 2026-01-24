@@ -11,3 +11,4 @@ migrations/
 aerich/
 .env
 # .env.*
+logs/

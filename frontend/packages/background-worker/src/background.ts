@@ -8,6 +8,7 @@ import axios from "axios";
 const API_BASE_URL = "http://localhost:5000/api";
 axios.defaults.baseURL = API_BASE_URL;
 axios.defaults.headers.common['Content-Type'] = 'application/json';
+axios.defaults.withCredentials = true
 
 console.log("[Background Worker] Starting.. .");
 
@@ -46,10 +47,9 @@ async function getAccessToken(): Promise<string | null> {
   return result.access_token || null;
 }
 
-async function setTokens(access:  string, refresh: string): Promise<void> {
+async function setTokens(access:  string): Promise<void> {
   await chrome. storage.local.set({ 
     access_token: access, 
-    refresh_token: refresh 
   });
 }
 
@@ -79,9 +79,8 @@ axios.interceptors. response.use(
       originalRequest._retry = true;
       
       try {
-        const { refresh_token } = await chrome.storage.local.get('refresh_token');
-        const { data } = await axios.post('/refresh', { refresh_token });
-        await setTokens(data.access_token, data.refresh_token);
+        const { data } = await axios.post('/refresh');
+        await setTokens(data.access_token);
         originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
         return axios(originalRequest);
       } catch (refreshError) {
@@ -309,7 +308,7 @@ async function signup(payload: {
 async function login(email: string, password: string): Promise<ApiResponse> {
   try {
     const { data } = await axios.post('/login', { email, password });
-    await setTokens(data.access_token, data.refresh_token);
+    await setTokens(data.access_token);
     
     await chrome.storage.local.set({
       encrypted_master_key: data.encrypted_master_key,
@@ -343,13 +342,9 @@ async function predictUrl(url: string): Promise<ApiResponse> {
   try {
     console.log(`[Prediction] Analyzing:  ${url}`);
     const { data } = await axios.post('/predict', { url });
-    
-    // Save to local history
     await addToLocalHistory(url, data.prediction, data.confidence);
-    
-    // Auto-block if enabled and phishing detected
     const settings = await getSettings();
-    if (settings.autoBlock && data.prediction === 1 && data.confidence > 0.7) {
+    if (settings.autoBlock && data.prediction === 1) {
       await addToLocalBlocklist(url, data.confidence);
       console.log(`[Auto-Block] ${url} (confidence: ${data.confidence})`);
     }
@@ -361,7 +356,6 @@ async function predictUrl(url: string): Promise<ApiResponse> {
   }
 }
 
-// Blocklist APIs (with encryption for logged-in users)
 async function addToBlocklist(url: string): Promise<ApiResponse> {
   try {
     const token = await getAccessToken();
@@ -494,42 +488,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           break;
           
         // Blocklist operations
-        case 'ADD_TO_BLOCKLIST':
-          const blockResult = await addToBlocklist(message.payload.url);
-          sendResponse(blockResult);
-          break;
-          
-        case 'GET_BLOCKLIST':
-          const listResult = await getBlocklist();
-          sendResponse(listResult);
-          break;
-          
-        case 'UNBLOCK_URL':
-          const unblockResult = await unblockUrl(message.payload.url);
-          sendResponse(unblockResult);
-          break;
-          
-        // History operations
-        case 'GET_HISTORY': 
-          const historyResult = await getHistory();
-          sendResponse(historyResult);
-          break;
-          
-        case 'CLEAR_HISTORY':
-          await clearHistory();
-          sendResponse({ success: true });
-          break;
-          
-        // Settings operations
-        case 'GET_SETTINGS':
-          const settingsResult = await getAllSettings();
-          sendResponse(settingsResult);
-          break;
-          
-        case 'UPDATE_SETTING':
-          const updateResult = await setSetting(message. payload.key, message.payload. value);
-          sendResponse(updateResult);
-          break;
+
           
         // Auth status
         case 'GET_AUTH_STATUS':
