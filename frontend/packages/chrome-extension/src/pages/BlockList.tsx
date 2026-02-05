@@ -3,10 +3,12 @@ import { Trash2, ShieldAlert, RefreshCw } from "lucide-react";
 import Navbar from "../components/Navbar";
 import IconButton from "../components/IconButton";
 
-interface BlockItem {
-  url: string;
-  blockedAt: string;
-  confidence?:  number;
+export interface BlockItem {
+  id: string;
+  hostname: string;
+  createdAt: string;
+  block: { enabled: boolean; datetime: string | null } | null;
+  history: { enabled: boolean; datetime: string | null } | null;
 }
 
 export default function BlockList() {
@@ -17,6 +19,9 @@ export default function BlockList() {
     setLoading(true);
     try {
       const response = await sendMessage('GET_BLOCKLIST');
+      console.log('Blocklist response:');
+      console.dir(response.data);
+      
       setList(response.data || []);
     } catch (err) {
       console.error('Error loading blocklist:', err);
@@ -45,7 +50,7 @@ export default function BlockList() {
 
   const handleUnblock = async (url: string) => {
     try {
-      await sendMessage('UNBLOCK_URL', { url });
+      await sendMessage('REMOVE_FROM_BLOCKLIST', { url });
       await loadBlocklist(); // Reload list
     } catch (err) {
       alert('Failed to unblock URL');
@@ -84,17 +89,16 @@ export default function BlockList() {
               className="flex justify-between items-center py-3 border-b border-gray-700 last:border-0"
             >
               <div className="flex-1">
-                <p className="text-sm md:text-base font-mono">{item.url}</p>
+                <p className="text-sm md:text-base font-mono">{item.hostname}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Blocked:  {new Date(item.blockedAt).toLocaleString()}
-                  {item.confidence && ` • Confidence: ${Math.round(item.confidence * 100)}%`}
+                  Blocked:  {item.block?.datetime ? new Date(item.block.datetime).toLocaleString() : 'N/A'}
                 </p>
               </div>
 
               <IconButton
                 icon={Trash2}
                 tooltip="Unblock"
-                onClick={() => handleUnblock(item.url)}
+                onClick={() => handleUnblock(item.hostname)}
               />
             </li>
           ))}

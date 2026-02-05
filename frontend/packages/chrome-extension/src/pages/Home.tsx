@@ -31,10 +31,10 @@ export default function Home() {
           !tab.url.startsWith("chrome://") &&
           !tab.url.startsWith("chrome-extension://")
         ) {
-          setUrl(tab.url);
-          
+          setUrl(getBaseUrl(tab.url));
+
           const response = await sendMessage("CHECK_IF_BLOCKED", {
-            url: getBaseUrl(tab.url),
+            url,
           });
           if (response.data.isBlocked) {
             setIsBlocked(true);
@@ -68,7 +68,6 @@ export default function Home() {
       setRisk(null);
       setIsBlocked(false);
 
-    
       const urlToPredict = url.trim();
 
       if (!urlToPredict) {
@@ -84,7 +83,9 @@ export default function Home() {
       }
 
       console.log("Predicting:", urlToPredict);
-      const response = await sendMessage("PREDICT_URL", { url: getBaseUrl(urlToPredict) });
+      const response = await sendMessage("PREDICT_URL", {
+        url: getBaseUrl(urlToPredict),
+      });
 
       if (response.success) {
         const { prediction: pred, confidence } = response.data;
@@ -151,7 +152,7 @@ export default function Home() {
         />
         {error && (
           <div className="mt-4 glass px-4 py-2 rounded-lg text-sm text-red-400 w-full">
-           {error}
+            {error}
           </div>
         )}
         <div className="flex gap-3 mt-6 justify-center">
@@ -174,7 +175,7 @@ export default function Home() {
             <button
               onClick={handleUnblock}
               disabled={loading}
-              className="btn btn-teal flex-1 max-w-[160px]"
+              className="btn btn-yellow flex-1 max-w-[160px]"
             >
               Unblock
             </button>
@@ -189,20 +190,18 @@ export default function Home() {
           )}
         </div>
 
-        {prediction && risk && !loading && (
+        {prediction !== null && risk !== null && !loading && (
           <div className="mt-8">
             <CircularProgress value={parseFloat(prediction.toFixed(2))} />
             <div className="text-center mt-4">
               {risk === 1 ? (
-                <p className="text-red-400 text-lg font-semibold">
-                 Phishing
-                </p>
-              ) : risk === 0 ? (
-                <p className="text-yellow-400 text-lg font-semibold">
-                   Suspicious
-                </p>
-              ) : (
+                <p className="text-red-400 text-lg font-semibold">Phishing</p>
+              ) : risk === -1 ? (
                 <p className="text-green-400 text-lg font-semibold">Safe</p>
+              ) : (
+                <p className="text-yellow-400 text-lg font-semibold">
+                  Suspicious
+                </p>
               )}
             </div>
           </div>

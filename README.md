@@ -60,3 +60,15 @@ Built with modern backend, frontend, and machine learning technologies, ensuring
 * **Background Worker**
 
   Central layer for storage handling, API calls, and improved security.
+
+## **Local Setup**
+
+Enviornment Python 3.10+,
+
+Clone repo
+
+install uv
+
+pip install uv
+
+uv sync

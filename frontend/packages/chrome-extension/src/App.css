@@ -64,6 +64,13 @@ body {
   background: #f87171;
 }
 
+.btn-yellow {
+  background: var(--accent-yellow);
+  color: #fff;
+}
+.btn-yellow:hover {
+  background: #fbbf24;
+}
 /* Input */
 .input-box {
   background: var(--bg-secondary);

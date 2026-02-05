@@ -3,8 +3,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import ToggleSwitch from "./components/toggle";
 import type { AppSettings } from "./utils/types";
-
-import { getSettings, saveSetting, getLoginStatus } from "./utils/utils";
+import { settingsApi } from "./api";
 
 const defaultSettings: AppSettings = {
   autoPredict: false,
@@ -18,12 +17,12 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    // Fetch settings and login state from utils
+    // Fetch settings and login state
     (async () => {
-      const savedSettings = await getSettings(defaultSettings);
+      const savedSettings = await settingsApi.getSettings(defaultSettings);
       setSettings(savedSettings);
 
-      const loggedIn = await getLoginStatus();
+      const loggedIn = await settingsApi.getLoginStatus();
       setIsLoggedIn(loggedIn);
     })();
   }, []);
@@ -32,14 +31,14 @@ function App() {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
 
-    // Save via utils
-    await saveSetting(key, value);
+    // Save setting
+    await settingsApi.saveSetting(key, value);
   };
 
   return (
     <div className="w-full min-h-screen px-5 py-6 bg-primary text-gray-200 font-sans">
 
-      <h1 className="text-xl font-semibold mb-4">⚙️ Extension Settings</h1>
+      <h1 className="text-xl font-semibold mb-4">Extension Settings</h1>
 
       <div className="glass p-4 rounded-xl mb-6 shadow-md">
         <h2 className="text-lg font-medium mb-3">General Settings</h2>

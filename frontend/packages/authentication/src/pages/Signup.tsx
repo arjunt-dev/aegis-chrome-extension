@@ -1,19 +1,27 @@
 import { useState } from "react";
 import AlertBanner from "../components/AlertBanner";
-
+import { authApi } from "../utils/api";
+import { useNavigate } from "react-router";
 export default function Signup() {
   const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
-  const [confirm, setConfirm] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm_password, setConfirmpassword] = useState("");
   const [alert, setAlert] = useState<{ type: string; msg: string } | null>(null);
-
-  const handleSignup = () => {
-    if (!email || !pass || !confirm)
+  const navigate = useNavigate();
+  const handleSignup = async () => {
+    if (!email || !password || !confirm_password)
       return setAlert({ type: "error", msg: "All fields are required." });
-    if (pass !== confirm)
+    if (password !== confirm_password)
       return setAlert({ type: "error", msg: "Passwords do not match." });
-    
-    setAlert({ type: "success", msg: "OTP sent to your email." });
+    const response = await authApi.signup({ email, password, confirm_password });
+    if (response?.success === true) {
+      setAlert({ type: "success", msg: "Signed up successfully! Please check your email for OTP verification." });
+      setTimeout(() => {
+        navigate("/verify-otp");
+      }, 5000);
+    } else {
+      setAlert({ type: "error", msg: response?.error || "Signup failed. Please try again." });
+    }
   };
 
   return (
@@ -32,16 +40,16 @@ export default function Signup() {
           className="input-box auth-input w-full"
           placeholder="Password"
           type="password"
-          value={pass}
-          onChange={(e) => setPass(e.target.value)}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
         />
 
         <input
           className="input-box auth-input w-full"
           placeholder="Confirm Password"
           type="password"
-          value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+          value={confirm_password}
+          onChange={(e) => setConfirmpassword(e.target.value)}
         />
 
         <button className="btn btn-teal auth-button w-full mt-2" onClick={handleSignup}>

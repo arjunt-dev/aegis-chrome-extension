@@ -1,9 +1,11 @@
+import type { AppSettings } from "./utils/types";
+
 async function sendMessageToBackground<T = any>(type: string, payload?: any): Promise<T> {
   return new Promise((resolve, reject) => {
-    chrome.runtime. sendMessage({ type, payload }, (response) => {
+    chrome.runtime.sendMessage({ type, payload }, (response) => {
       if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
-      } else if (!response. success) {
+      } else if (!response.success) {
         reject(new Error(response.error));
       } else {
         resolve(response.data);
@@ -13,15 +15,25 @@ async function sendMessageToBackground<T = any>(type: string, payload?: any): Pr
 }
 
 export const settingsApi = {
-  async getHistory() {
-    return sendMessageToBackground('GET_HISTORY');
+  async getSettings(defaults: AppSettings): Promise<AppSettings> {
+    try {
+      return await sendMessageToBackground<AppSettings>('GET_SETTINGS');
+    } catch (error) {
+      console.error('Error getting settings:', error);
+      return defaults;
+    }
   },
 
-  async getBlocklist() {
-    return sendMessageToBackground('GET_BLOCKLIST');
+  async saveSetting(key: keyof AppSettings, value: boolean): Promise<void> {
+    await sendMessageToBackground('UPDATE_SETTING', { key, value });
   },
 
-  async logout() {
-    return sendMessageToBackground('LOGOUT');
+  async getLoginStatus(): Promise<boolean> {
+    try {
+      const result = await sendMessageToBackground<{ isAuthenticated: boolean }>('IS_AUTHENTICATED');
+      return result.isAuthenticated;
+    } catch (error) {
+      return false;
+    }
   }
 };

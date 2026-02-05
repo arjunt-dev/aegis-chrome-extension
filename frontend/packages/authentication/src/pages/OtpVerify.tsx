@@ -1,16 +1,19 @@
 import { useState } from "react";
 import OtpInput from "../components/OtpInput";
 import AlertBanner from "../components/AlertBanner";
-
+import { authApi } from "../utils/api";
 export default function OtpVerify() {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [alert, setAlert] = useState<{ type: string; msg: string } | null>(null);
 
-  const handleVerify = () => {
+  const handleVerify = async () => {
     if (otp.join("").length !== 6)
       return setAlert({ type: "error", msg: "Enter a valid 6-digit OTP." });
-
-    setAlert({ type: "success", msg: "OTP Verified!" });
+    const response=await authApi.verifyOtp({ code: otp.join("") });
+    if (response?.success !== true) {
+      return setAlert({ type: "error", msg: response?.error || "OTP verification failed. Please try again." });
+    }
+    setAlert({ type: "success", msg: "OTP Verified Successfully!" });
   };
 
   return (
