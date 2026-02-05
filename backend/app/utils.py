@@ -58,3 +58,7 @@ def validate_password_strength(password: str):
     if password.lower() in weak_passwords:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
                             detail="Password is too common or easily guessable.")
+
+def safe_mail(email: str) -> str:
+    safe_email = email.split("@")[0][:3] + "***@" + email.split("@")[1]
+    return safe_email

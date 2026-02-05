@@ -1,10 +1,12 @@
 import math
 import re
 from urllib.parse import urlparse
+from fastapi import HTTPException
 import pandas as pd
-from config import BASE_MODEL, META_MODEL
+from config import BASE_MODEL, META_MODEL, MAX_URL_LENGTH
 from urllib.parse import urlparse, parse_qs
 import tldextract
+from logging_config import logger
     
 def extract_features_from_url(url: str):
     parsed = urlparse(url)
@@ -63,48 +65,43 @@ def extract_features_from_url(url: str):
     }
     return feat
 
-def predict_url(url: str):
-        feat_cols = BASE_MODEL["feature_columns"]
-        feat_dict = extract_features_from_url(url)
-        X_row = pd.DataFrame([feat_dict])[feat_cols]
-        p_cat = BASE_MODEL["base_cat"].predict_proba(X_row)[:, 1][0]
-        p_et  = BASE_MODEL["base_ext"].predict_proba(X_row)[:, 1][0] 
-        p_rf  = BASE_MODEL["base_rf"].predict_proba(X_row)[:, 1][0]
-        X_lr = X_row   
-        X_lr_scaled = META_MODEL.transform(X_lr)
-        p_lr = BASE_MODEL["base_lr"].predict_proba(X_lr_scaled)[:, 1][0]
-        meta = pd.DataFrame([{
-        "cat_pred": p_cat,
-        "ext_pred": p_et,
-        "rf_pred": p_rf,
-        "lr_pred": p_lr
-        }])
-        meta_scaled = BASE_MODEL["meta_scaler"].transform(meta)
+def predict_url(url: str):   
+        if len(url) > MAX_URL_LENGTH:
+            raise HTTPException(413, "URL too long")
+        try:     
+            feat_cols = BASE_MODEL["feature_columns"]
+            feat_dict = extract_features_from_url(url)
+            X_row = pd.DataFrame([feat_dict])[feat_cols]
+            p_cat = BASE_MODEL["base_cat"].predict_proba(X_row)[:, 1][0]
+            p_et  = BASE_MODEL["base_ext"].predict_proba(X_row)[:, 1][0] 
+            p_rf  = BASE_MODEL["base_rf"].predict_proba(X_row)[:, 1][0]
+            X_lr = X_row   
+            X_lr_scaled = META_MODEL.transform(X_lr)
+            p_lr = BASE_MODEL["base_lr"].predict_proba(X_lr_scaled)[:, 1][0]
+            meta = pd.DataFrame([{
+            "cat_pred": p_cat,
+            "ext_pred": p_et,
+            "rf_pred": p_rf,
+            "lr_pred": p_lr
+            }])
+            meta_scaled = BASE_MODEL["meta_scaler"].transform(meta)
 
-        final_prob_legit = BASE_MODEL["meta_lr"].predict_proba(meta_scaled)[0, 1]
-        prob_phishing = 1 - final_prob_legit
-        if prob_phishing < 0.10:
-            risk = -1
-            confidence = float(final_prob_legit)
-        elif prob_phishing < 0.40:
-            risk = 0
-            confidence = max(final_prob_legit, prob_phishing)
-        else:
-            risk = 1
-            confidence = float(prob_phishing)
-
-        # --- 5. Final JSON ---
-        return {
-            "url": url,
-            "prediction": risk,
-            "confidence": float(confidence),
-            # "prob_phishing": float(prob_phishing),
-            # "prob_legitimate": float(final_prob_legit),
-            # "prediction_label": int(label_pred),
-            # "base_model_scores": {
-            #     "catboost": float(p_cat),
-            #     "extratrees": float(p_et),
-            #     "randomforest": float(p_rf),
-            #     "logistic": float(p_lr)
-            # }
-        }
+            final_prob_legit = BASE_MODEL["meta_lr"].predict_proba(meta_scaled)[0, 1]
+            prob_phishing = 1 - final_prob_legit
+            if prob_phishing < 0.10:
+                risk = -1
+                confidence=float(prob_phishing)
+            elif prob_phishing < 0.40:
+                risk = 0
+                confidence=float(prob_phishing)
+            else:
+                risk = 1
+                confidence=float(prob_phishing)
+            return {
+                "url": url,
+                "prediction": risk,
+                "confidence": float(confidence),
+            }
+        except Exception as e:
+            logger.error(f"Prediction error: {str(e)}")
+            raise HTTPException(500, "Prediction failed")

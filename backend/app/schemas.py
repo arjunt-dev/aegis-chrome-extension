@@ -1,9 +1,9 @@
 from pydantic import BaseModel, EmailStr, Field, AnyHttpUrl
-from datetime import datetime
 
 class EncryptedPayload(BaseModel):
     iv: str
     ciphertext: str
+    v:int
 
 
 class SignupRequest(BaseModel):
@@ -11,7 +11,7 @@ class SignupRequest(BaseModel):
     password: str
     confirm_password: str
     salt: str
-    enc_master_user: EncryptedPayload
+    enc_master_user_key: EncryptedPayload
 
 
 class SignupResponse(BaseModel):
@@ -55,3 +55,4 @@ class PredictionRequest(BaseModel):
 class PredictionResponse(BaseModel):
     prediction: int
     confidence: float | None = None
+

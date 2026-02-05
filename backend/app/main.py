@@ -67,9 +67,16 @@ async def log_requests(request: Request, call_next):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.error(
+        "Validation error | %s %s | Errors=%s | Body=%s",
+        request.method,
+        request.url.path,
+        exc.errors(),
+        exc.body
+    )
     return JSONResponse(
         status_code=400,
-        content={"detail": exc.errors()[0]['msg']} if not DEBUG else {"detail": exc.errors(), "body": exc.body},
+        content={"body": "Unexpected error. Please check your input data."},
     )
 
 if __name__ == "__main__":

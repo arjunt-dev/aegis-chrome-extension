@@ -97,3 +97,4 @@ def load_model(model_path):
 
 BASE_MODEL= load_model(os.path.join(BASE_DIR, "phishing_model","Base_Ensemble.joblib"))
 META_MODEL= load_model(os.path.join(BASE_DIR, "phishing_model","Meta_LR.joblib"))
+MAX_URL_LENGTH = 2048

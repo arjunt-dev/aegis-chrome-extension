@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer
-from predict import predict_url
+from predict import predict_url,logger
 from schemas import (
     LoginRequest, LoginResponse, PredictionRequest, PredictionResponse, 
     SignupRequest, SignupResponse, OtpVerifyRequest, OtpVerifyResponse, VaultResponse, VaultUpdateRequest
@@ -9,6 +9,7 @@ from security import authenticate, create_user, get_current_user, issue_token, r
 from models import User, Vault
 from tortoise.exceptions import IntegrityError
 from fastapi_limiter.depends import RateLimiter
+from utils import safe_mail
 import signals
 
 router = APIRouter(prefix="/api", tags=["API"])
@@ -17,8 +18,11 @@ security = HTTPBearer(auto_error=True)
 @router.post("/signup", response_model=SignupResponse,
              status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(RateLimiter(times=5, seconds=300))])
+
 async def signup(data: SignupRequest):
+
     if data.password != data.confirm_password:
+        logger.warning(f"Signup attempt with non-matching passwords for email: {safe_mail(data.email)}")
         raise HTTPException(400, "Passwords do not match")
 
     try:
@@ -26,69 +30,86 @@ async def signup(data: SignupRequest):
             email=data.email,
             password=data.password,
             salt=data.salt,
-            enc_master_user=data.enc_master_user.dict()
+            enc_master_user=data.enc_master_user_key.model_dump()   
         )
-
+        logger.info(f"New user created: {safe_mail(data.email)}"    )
         return SignupResponse(message="User created successfully")
-
-    except IntegrityError:
+    except HTTPException as http_exc:
+            logger.warning(f"Signup attempt failed for email: {safe_mail(data.email)} {str(http_exc.detail)}")
+            raise HTTPException(http_exc.status_code, http_exc.detail)
+    except Exception as e:
+        logger.warning(f"Signup attempt with existing email: {safe_mail(data.email)} {str(e)}")
         raise HTTPException(400, "User already exists")
 
 
 @router.post("/login", response_model=LoginResponse)
 async def login(data: LoginRequest, response: Response):
+    try:
+        user = await authenticate(data.email, data.password)
+        access_token, refresh_token = await issue_token(user)
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=False,
+            samesite="strict",
+            max_age=60 * 60 * 24 * 7
+        )
 
-    user = await authenticate(data.email, data.password)
-    access_token, refresh_token = await issue_token(user)
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=False,
-        samesite="strict",
-        max_age=60 * 60 * 24 * 7
-    )
-
-    return LoginResponse(
-        access_token=access_token,
-        salt=user.password_salt,
-        enc_master_user=user.encrypted_master_key
-    )
+        return LoginResponse(
+            access_token=access_token,
+            salt=user.password_salt,
+            enc_master_user=user.encrypted_master_key
+        )
+    except Exception as e:
+        logger.warning(f"Failed login attempt for {safe_mail(data.email)}{str(e)}")
+        raise HTTPException(401,"Login failed")
 
 @router.post("/refresh")
 async def refresh_token(request: Request, response: Response):
+    try:
+        refresh_token = request.cookies.get("refresh_token")
+        if not refresh_token:
+            raise HTTPException(401)
 
-    refresh_token = request.cookies.get("refresh_token")
-    if not refresh_token:
-        raise HTTPException(401)
+        access_token, new_refresh = await refresh_access_token(refresh_token)
 
-    access_token, new_refresh = await refresh_access_token(refresh_token)
+        response.set_cookie(
+            key="refresh_token",
+            value=new_refresh,
+            httponly=True,
+            secure=True,
+            samesite="strict",
+            max_age=60 * 60 * 24 * 7
+        )
 
-    response.set_cookie(
-        key="refresh_token",
-        value=new_refresh,
-        httponly=True,
-        secure=True,
-        samesite="strict",
-        max_age=60 * 60 * 24 * 7
-    )
+        return {
+            "access_token": access_token,
+            "token_type": "bearer"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Failed token refresh attempt: {str(e)}")
+        raise HTTPException(500)
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer"
-    }
-
-@router.post("/verify", response_model=OtpVerifyResponse)
+@router.post("/verify-otp", response_model=OtpVerifyResponse)
 async def verify(data: OtpVerifyRequest):
-    user = await User.get_or_none(email=data.email)
-    if not user:
-        raise HTTPException(404, "User not found")
+    try:
+        user = await User.get_or_none(email=data.email)
+        if not user:
+            raise HTTPException(404, "User not found")
 
-    verified = await verify_otp_for_user(user, data.code)
-    if not verified:
-        raise HTTPException(400, "Invalid OTP")
-
-    return OtpVerifyResponse(message="Account verified")
+        verified = await verify_otp_for_user(user, data.code)
+        if not verified:
+            raise HTTPException(400, "Invalid OTP")
+        
+        return OtpVerifyResponse(message="Account verified")
+    except HTTPException:
+           raise
+    except Exception as e:
+        logger.warning(f"OTP verification failed for email: {safe_mail(data.email)} {str(e)}")
+        raise HTTPException(500)
 
 
 @router.post("/logout")
@@ -99,12 +120,16 @@ async def logout(response: Response):
 
 @router.get("/vault", response_model=VaultResponse)
 async def get_vault(user: User = Depends(get_current_user)):
-    vault = await Vault.get_or_none(user=user)
+    try:
+        vault = await Vault.get_or_none(user=user)
 
-    if not vault:
-        return VaultResponse(blob=None)
+        if not vault:
+            return VaultResponse(blob=None)
 
-    return VaultResponse(blob=vault.encrypted_blob)
+        return VaultResponse(blob=vault.encrypted_blob)
+    except Exception as e:
+        logger.error(f"Error retrieving vault for user {user.email}: {str(e)}")
+        raise HTTPException(500)
 
 
 @router.post("/vault", status_code=status.HTTP_200_OK)
@@ -112,26 +137,34 @@ async def update_vault(
     data: VaultUpdateRequest,
     user: User = Depends(get_current_user)
 ):
-    vault = await Vault.get_or_none(user=user)
+    try:
+        vault = await Vault.get_or_none(user=user)
 
-    if vault:
-        vault.encrypted_blob = data.blob.dict()
-        await vault.save()
-    else:
-        await Vault.create(
-            user=user,
-            encrypted_blob=data.blob.dict()
-        )
+        if vault:
+            vault.encrypted_blob = data.blob.model_dump()
+            await vault.save()
+        else:
+            await Vault.create(
+                user=user,
+                encrypted_blob=data.blob.model_dump()
+            )
 
-    return {"message": "Vault updated"}
+        return {"message": "Vault updated"}
+    except Exception as e:
+        logger.error(f"Error updating vault for user {user.email}: {str(e)}")
+        raise HTTPException(500)
 
 
 
 @router.post("/predict", response_model=PredictionResponse,
              dependencies=[Depends(RateLimiter(times=20, seconds=60))])
 async def predict(data: PredictionRequest):
-    result = predict_url(str(data.url))
-    return PredictionResponse(
-        prediction=result["prediction"],
-        confidence=result["confidence"]
-    )
+    try:
+        result = predict_url(str(data.url))
+        return PredictionResponse(
+            prediction=result["prediction"],
+            confidence=result["confidence"]
+        )
+    except Exception as e:
+        logger.error(f"Prediction error : {str(e)}")
+        raise HTTPException(500, f"Prediction failed")
