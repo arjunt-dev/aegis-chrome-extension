@@ -549,16 +549,30 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
    INIT
 ============================================ */
 chrome.runtime.onInstalled.addListener(async () => {
-  await chrome.storage.local.set({
-    blocklist: [],
-    settings: { 
-      autoPredict: true, 
-      autoBlock: true,
-      saveHistory: false,
-      syncBlocklist: false,
-      autoPopup: false,
-    },
-  });
+  // Get existing settings if any
+  const result = await chrome.storage.local.get(['blocklist', 'settings']);
+  
+  // Initialize blocklist if it doesn't exist
+  if (!result.blocklist) {
+    await chrome.storage.local.set({ blocklist: [] });
+  }
+  
+  // Merge with default settings, preserving existing user preferences
+  const defaultSettings = {
+    autoPredict: true,
+    autoBlock: true,
+    saveHistory: false,
+    syncBlocklist: false,
+    autoPopup: false,
+  };
+  
+  const mergedSettings = {
+    ...defaultSettings,
+    ...result.settings, // Preserve existing settings
+    autoPopup: result.settings?.autoPopup ?? false, // Add new setting if missing
+  };
+  
+  await chrome.storage.local.set({ settings: mergedSettings });
 
   await updateBlockingRules();
   console.log("[Init] Extension ready");
