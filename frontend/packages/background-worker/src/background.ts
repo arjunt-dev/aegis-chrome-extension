@@ -304,7 +304,7 @@ chrome.tabs.onUpdated.addListener(async (_, change, tab) => {
       chrome.action.setBadgeText({ text: "⚠️" });
 
       // Auto-popup the extension if enabled
-      if (settings.autoPopup && tab.id) {
+      if (settings.autoPopup) {
         try {
           await chrome.action.openPopup();
         } catch (popupError) {
