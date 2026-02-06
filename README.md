@@ -51,6 +51,9 @@ Built with modern backend, frontend, and machine learning technologies, ensuring
 * **ML-Driven Phishing Detection**
 
   High-accuracy ensemble model predicting URL legitimacy instantly.
+* **Auto-Popup Alert**
+
+  Automatically opens the extension popup when a phishing URL is detected (configurable).
 * **URL Blocking & Auto-Sync**
 
   Block suspicious URLs and sync blocklists for logged-in users.
