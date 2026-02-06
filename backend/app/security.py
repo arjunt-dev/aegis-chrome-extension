@@ -17,7 +17,7 @@ async def create_user(
     email: str,
     password: str,
     salt: str,
-    enc_master_user: dict
+    enc_master_user: str  # Changed from dict to str (JSON string)
 ):
     validate_password_strength(password)
 

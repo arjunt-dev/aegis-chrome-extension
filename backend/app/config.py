@@ -17,7 +17,7 @@ scheduler = AsyncIOScheduler()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEBUG = os.getenv("DEBUG", "True") == "True"
 SECRET_KEY = os.getenv("SECRET_KEY") 
-DB_URL = "sqlite://db.sqlite3"
+DB_URL = f"sqlite://{os.path.join(BASE_DIR, 'db.sqlite3')}"
 EXTENSION_ID="phaapmkjnafbdnnbimibbffdpephgmmh"
 
 TORTOISE_ORM = {
