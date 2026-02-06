@@ -16,6 +16,7 @@ export interface AppSettings {
   autoBlock: boolean;
   saveHistory: boolean;
   syncBlocklist: boolean;
+  autoPopup: boolean;
 }
 
 export interface VaultItem {

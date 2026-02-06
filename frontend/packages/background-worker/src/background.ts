@@ -303,6 +303,16 @@ chrome.tabs.onUpdated.addListener(async (_, change, tab) => {
     if (result.prediction === -1) {
       chrome.action.setBadgeText({ text: "⚠️" });
 
+      // Auto-popup the extension if enabled
+      if (settings.autoPopup && tab.id) {
+        try {
+          await chrome.action.openPopup();
+        } catch (popupError) {
+          // If openPopup fails (e.g., user gesture required), log it
+          console.warn("[AutoPopup] Could not open popup:", popupError);
+        }
+      }
+
       if (chrome.notifications) {
         chrome.notifications.create({
           type: "basic",
@@ -541,7 +551,13 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
 chrome.runtime.onInstalled.addListener(async () => {
   await chrome.storage.local.set({
     blocklist: [],
-    settings: { autoPredict: true, autoBlock: true },
+    settings: { 
+      autoPredict: true, 
+      autoBlock: true,
+      saveHistory: false,
+      syncBlocklist: false,
+      autoPopup: false,
+    },
   });
 
   await updateBlockingRules();
