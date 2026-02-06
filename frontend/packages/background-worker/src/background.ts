@@ -549,13 +549,11 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
    INIT
 ============================================ */
 chrome.runtime.onInstalled.addListener(async () => {
-  // Get existing settings if any
-  const result = await chrome.storage.local.get(['blocklist', 'settings']);
-  
-  // Initialize blocklist if it doesn't exist
-  if (!result.blocklist) {
-    await chrome.storage.local.set({ blocklist: [] });
-  }
+  // Get existing settings with defaults if they don't exist
+  const result = await chrome.storage.local.get({
+    blocklist: [],
+    settings: {},
+  });
   
   // Merge with default settings, preserving existing user preferences
   const defaultSettings = {
@@ -571,7 +569,10 @@ chrome.runtime.onInstalled.addListener(async () => {
     ...result.settings, // Preserve existing settings
   };
   
-  await chrome.storage.local.set({ settings: mergedSettings });
+  await chrome.storage.local.set({ 
+    blocklist: result.blocklist,
+    settings: mergedSettings 
+  });
 
   await updateBlockingRules();
   console.log("[Init] Extension ready");
