@@ -569,7 +569,6 @@ chrome.runtime.onInstalled.addListener(async () => {
   const mergedSettings = {
     ...defaultSettings,
     ...result.settings, // Preserve existing settings
-    autoPopup: result.settings?.autoPopup ?? false, // Add new setting if missing
   };
   
   await chrome.storage.local.set({ settings: mergedSettings });
