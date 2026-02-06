@@ -1,13 +1,13 @@
 // API wrapper for authentication app
-export async function sendMessageToBackground<T = any>(type: string, payload?:  any): Promise<T> {
+export async function sendMessageToBackground<T = any>(type: string, payload?: any): Promise<T> {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage({ type, payload }, (response) => {
-      if (chrome. runtime.lastError) {
+      if (chrome.runtime.lastError) {
         reject(new Error(chrome.runtime.lastError.message));
-      } else if (! response. success) {
-        reject(new Error(response.error));
+      } else if (!response?.success) {
+        resolve({ success: false, error: response?.error || 'Unknown error' } as T);
       } else {
-        resolve(response.data);
+        resolve({ success: true, data: response.data } as T);
       }
     });
   });
@@ -19,18 +19,34 @@ export const authApi = {
     password: string;
     confirm_password: string;
   }) {
-    return sendMessageToBackground('SIGNUP', data);
+    try {
+      return await sendMessageToBackground('SIGNUP', data);
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
   },
 
   async login(email: string, password: string) {
-    return sendMessageToBackground('LOGIN', { email, password });
+    try {
+      return await sendMessageToBackground('LOGIN', { email, password });
+    } catch (error: any) {
+      return { success: false, message: error.message };
+    }
   },
 
-  async verifyOtp(data:{code:  string}) {
-    return sendMessageToBackground('VERIFY_OTP', data);
+  async verifyOtp(data: { code: string }) {
+    try {
+      return await sendMessageToBackground('VERIFY_OTP', data);
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
   },
 
   async logout() {
-    return sendMessageToBackground('LOGOUT');
+    try {
+      return await sendMessageToBackground('LOGOUT');
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
   },
 };

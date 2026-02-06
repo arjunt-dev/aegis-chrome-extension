@@ -4,11 +4,15 @@ import Navbar from "../components/Navbar";
 import IconButton from "../components/IconButton";
 
 interface HistoryItem {
-  url:  string;
-  prediction: number;
-  confidence: number;
-  checkedAt: string;
-  result: 'safe' | 'phishing';
+  id: string;
+  hostname: string;
+  createdAt: string;
+  history: {
+    enabled: boolean;
+    datetime: string | null;
+    prediction?: number;
+    confidence?: number;
+  } | null;
 }
 
 export default function PredictionHistory() {
@@ -19,7 +23,9 @@ export default function PredictionHistory() {
     setLoading(true);
     try {
       const response = await sendMessage('GET_HISTORY');
-      setHistory(response. data || []);
+      // Filter to only show items with history data
+      const historyItems = (response.data || []).filter((item: HistoryItem) => item.history !== null);
+      setHistory(historyItems);
     } catch (err) {
       console.error('Error loading history:', err);
     } finally {
@@ -46,7 +52,7 @@ export default function PredictionHistory() {
   };
 
   const clearHistory = async () => {
-    if (! confirm('Are you sure you want to clear all history?')) return;
+    if (!confirm('Are you sure you want to clear all history?')) return;
     
     try {
       await sendMessage('CLEAR_HISTORY');
@@ -54,6 +60,19 @@ export default function PredictionHistory() {
     } catch (err) {
       alert('Failed to clear history');
     }
+  };
+
+  const getResultLabel = (prediction?: number) => {
+    if (prediction === undefined) return 'Unknown';
+    if (prediction === 1) return 'Phishing';
+    if (prediction === -1) return 'Safe';
+    return 'Suspicious';
+  };
+
+  const getResultColor = (prediction?: number) => {
+    if (prediction === 1) return 'text-red-400';
+    if (prediction === -1) return 'text-green-400';
+    return 'text-yellow-400';
   };
 
   return (
@@ -102,18 +121,24 @@ export default function PredictionHistory() {
             </thead>
 
             <tbody>
-              {history.map((item, index) => (
-                <tr key={index} className="border-b border-gray-800">
+              {history.map((item) => (
+                <tr key={item.id} className="border-b border-gray-800">
                   <td className="py-2 px-2">
-                    {item.result === 'phishing' ? (
-                      <span className="text-red-400 font-semibold">Phishing</span>
-                    ) : (
-                      <span className="text-green-400 font-semibold">Safe</span>
-                    )}
+                    <span className={`font-semibold ${getResultColor(item.history?.prediction)}`}>
+                      {getResultLabel(item.history?.prediction)}
+                    </span>
                   </td>
-                  <td className="py-2 px-2 font-mono text-xs">{item.url}</td>
-                  <td className="py-2 px-2">{Math.round(item.confidence * 100)}%</td>
-                  <td className="py-2 px-2 text-xs">{new Date(item.checkedAt).toLocaleString()}</td>
+                  <td className="py-2 px-2 font-mono text-xs">{item.hostname}</td>
+                  <td className="py-2 px-2">
+                    {item.history?.confidence !== undefined 
+                      ? `${Math.round(item.history.confidence * 100)}%` 
+                      : 'N/A'}
+                  </td>
+                  <td className="py-2 px-2 text-xs">
+                    {item.history?.datetime 
+                      ? new Date(item.history.datetime).toLocaleString() 
+                      : 'N/A'}
+                  </td>
                 </tr>
               ))}
             </tbody>

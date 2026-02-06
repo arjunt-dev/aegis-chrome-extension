@@ -18,7 +18,7 @@ export default function AuthCard({ title="Aegis" }: { title?: string;}) {
       >
         <div className="w-24 h-24 rounded-full bg-gray-700/40 mb-4 flex items-center justify-center">
           <img
-            src="/logo.pn"
+            src="/logo.png"
             alt="logo"
             className="w-20 h-20 object-contain opacity-80"
             onError={(e) => {

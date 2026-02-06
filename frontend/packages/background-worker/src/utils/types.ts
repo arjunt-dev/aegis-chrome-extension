@@ -23,7 +23,12 @@ export interface VaultItem {
   hostname: string;
   createdAt: string;
   block: { enabled: boolean; datetime: string | null } | null;
-  history: { enabled: boolean; datetime: string | null } | null;
+  history: { 
+    enabled: boolean; 
+    datetime: string | null;
+    prediction?: number; // ADD: store prediction result
+    confidence?: number; // ADD: store confidence
+  } | null;
 }
 
 export interface EncryptedPayload {
@@ -46,7 +51,8 @@ export interface BlockItem {
 
 export interface LoginResponse{
   access_token: string;
+  refresh_token: string;
   token_type: string;
   salt: string;
-  enc_master_user_key: EncryptedPayload;
+  enc_master_user: EncryptedPayload;
 }
