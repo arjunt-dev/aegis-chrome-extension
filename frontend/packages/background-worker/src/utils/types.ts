@@ -14,6 +14,7 @@ export interface PredictionResult {
 export interface AppSettings {
   autoPredict: boolean;
   autoBlock: boolean;
+  autoPopup: boolean;
   saveHistory: boolean;
   syncBlocklist: boolean;
 }

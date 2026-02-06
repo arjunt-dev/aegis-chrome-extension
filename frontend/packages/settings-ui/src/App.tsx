@@ -6,8 +6,9 @@ import type { AppSettings } from "./utils/types";
 import { settingsApi } from "./api";
 
 const defaultSettings: AppSettings = {
-  autoPredict: false,
+  autoPredict: true,
   autoBlock: false,
+  autoPopup: true,
   saveHistory: false,
   syncBlocklist: false,
 };
@@ -28,11 +29,17 @@ function App() {
   }, []);
 
   const handleSettingChange = async (key: keyof AppSettings, value: boolean) => {
-    const newSettings = { ...settings, [key]: value };
+    let newSettings = { ...settings, [key]: value };
+    
+    // If turning off autoPredict, also turn off autoPopup
+    if (key === "autoPredict" && !value) {
+      newSettings.autoPopup = false;
+    }
+    
     setSettings(newSettings);
 
-    // Save setting
-    await settingsApi.saveSetting(key, value);
+    // Save all updated settings
+    await settingsApi.saveSettings(newSettings);
   };
 
   return (
@@ -54,28 +61,34 @@ function App() {
           checked={settings.autoBlock}
           onChange={(value) => handleSettingChange("autoBlock", value)}
         />
-      </div>
 
-      <div className="glass p-4 rounded-xl shadow-md">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-medium">Authenticated Features</h2>
-        </div>
-
-        <p className="text-sm text-gray-400 mt-1 mb-4">
-          {isLoggedIn
-            ? "These settings sync with your account."
-            : "Log in to unlock these features."}
-        </p>
+        <ToggleSwitch
+          label="Auto-open popup on detection"
+          checked={settings.autoPopup}
+          onChange={(value) => handleSettingChange("autoPopup", value)}
+          disabled={!settings.autoPredict}
+        />
 
         <ToggleSwitch
           label="Save prediction history"
           checked={settings.saveHistory}
           onChange={(value) => handleSettingChange("saveHistory", value)}
-          disabled={!isLoggedIn}
         />
+      </div>
+
+      <div className="glass p-4 rounded-xl shadow-md">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-medium">Cloud Sync (Requires Login)</h2>
+        </div>
+
+        <p className="text-sm text-gray-400 mt-1 mb-4">
+          {isLoggedIn
+            ? "End-to-end encrypted sync with your account."
+            : "Log in to sync your data securely across devices."}
+        </p>
 
         <ToggleSwitch
-          label="Sync blocklist across devices"
+          label="Sync blocklist & history across devices"
           checked={settings.syncBlocklist}
           onChange={(value) => handleSettingChange("syncBlocklist", value)}
           disabled={!isLoggedIn}

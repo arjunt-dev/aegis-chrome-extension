@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Loader2 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import CircularProgress from "../components/CircularProgress";
+import { extensionApi, sendMessageToBackground } from "../api";
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -22,6 +23,31 @@ export default function Home() {
   useEffect(() => {
     (async () => {
       try {
+        // Check for URL parameters (from auto-predict)
+        const params = new URLSearchParams(window.location.search);
+        const autoDetected = params.get('autoDetected');
+        const urlParam = params.get('url');
+        const predictionParam = params.get('prediction');
+        const confidenceParam = params.get('confidence');
+
+        if (autoDetected === 'true' && urlParam && predictionParam && confidenceParam) {
+          // Auto-detected phishing - display the prediction immediately
+          const baseUrl = getBaseUrl(urlParam);
+          setUrl(baseUrl);
+          setRisk(parseInt(predictionParam));
+          setPrediction(parseFloat(confidenceParam) * 100);
+          
+          // Check if already blocked
+          const response = await sendMessageToBackground("CHECK_IF_BLOCKED", {
+            url: baseUrl,
+          });
+          if (response.isBlocked) {
+            setIsBlocked(true);
+          }
+          return; // Don't run the tab query logic
+        }
+
+        // Normal flow - get current tab
         const [tab] = await chrome.tabs.query({
           active: true,
           currentWindow: true,
@@ -29,14 +55,14 @@ export default function Home() {
         if (
           tab?.url &&
           !tab.url.startsWith("chrome://") &&
-          !tab.url.startsWith("chrome-extension://")
+          !tab.url.startsWith("chrome-extension://")    
         ) {
           setUrl(getBaseUrl(tab.url));
 
-          const response = await sendMessage("CHECK_IF_BLOCKED", {
-            url,
+          const response = await sendMessageToBackground("CHECK_IF_BLOCKED", {
+            url: getBaseUrl(tab.url),
           });
-          if (response.data.isBlocked) {
+          if (response.isBlocked) {
             setIsBlocked(true);
           }
         }
@@ -45,20 +71,6 @@ export default function Home() {
       }
     })();
   }, []);
-
-  const sendMessage = (type: string, payload?: any): Promise<any> => {
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ type, payload }, (response) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-        } else if (!response.success) {
-          reject(new Error(response.error));
-        } else {
-          resolve(response);
-        }
-      });
-    });
-  };
 
   const handlePredict = async () => {
     try {
@@ -83,18 +95,14 @@ export default function Home() {
       }
 
       console.log("Predicting:", urlToPredict);
-      const response = await sendMessage("PREDICT_URL", {
-        url: getBaseUrl(urlToPredict),
-      });
+      const response = await extensionApi.predictUrl(getBaseUrl(urlToPredict));
 
-      if (response.success) {
-        const { prediction: pred, confidence } = response.data;
-        console.log("Prediction result:", pred, confidence);
-        setRisk(pred);
-        setPrediction(confidence * 100);
-        if (!url.trim()) {
-          setUrl(urlToPredict);
-        }
+      const { prediction: pred, confidence } = response;
+      console.log("Prediction result:", pred, confidence);
+      setRisk(pred);
+      setPrediction(confidence * 100);
+      if (!url.trim()) {
+        setUrl(urlToPredict);
       }
     } catch (err: any) {
       setError(err.message || "Prediction failed");
@@ -113,7 +121,7 @@ export default function Home() {
         return;
       }
 
-      await sendMessage("ADD_TO_BLOCKLIST", { url: getBaseUrl(urlToBlock) });
+      await sendMessageToBackground("ADD_TO_BLOCKLIST", { url: getBaseUrl(urlToBlock) });
       setIsBlocked(true);
       alert(`Blocked:  ${getBaseUrl(urlToBlock)}`);
     } catch (err: any) {
@@ -130,7 +138,7 @@ export default function Home() {
         return;
       }
 
-      await sendMessage("UNBLOCK_URL", { url: getBaseUrl(urlToUnblock) });
+      await sendMessageToBackground("UNBLOCK_URL", { url: getBaseUrl(urlToUnblock) });
       setIsBlocked(false);
       alert(`Unblocked: ${getBaseUrl(urlToUnblock)}`);
     } catch (err: any) {

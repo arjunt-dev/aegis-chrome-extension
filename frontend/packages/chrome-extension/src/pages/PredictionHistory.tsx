@@ -18,6 +18,7 @@ interface HistoryItem {
 export default function PredictionHistory() {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const loadHistory = async () => {
     setLoading(true);
@@ -26,6 +27,10 @@ export default function PredictionHistory() {
       // Filter to only show items with history data
       const historyItems = (response.data || []).filter((item: HistoryItem) => item.history !== null);
       setHistory(historyItems);
+      
+      // Check authentication status
+      const authResponse = await sendMessage('IS_AUTHENTICATED');
+      setIsAuthenticated(authResponse.data || false);
     } catch (err) {
       console.error('Error loading history:', err);
     } finally {
@@ -100,13 +105,23 @@ export default function PredictionHistory() {
         </div>
       </div>
 
+      {history.length === 0 && !loading && (
+        <div className="glass rounded-xl p-4 mb-4 text-sm text-gray-400">
+          <p><strong>Tip:</strong> Enable "Save prediction history" in Settings to track your URL predictions.</p>
+          {isAuthenticated && (
+            <p className="mt-2">Enable "Sync blocklist & history" to sync across devices with encryption.</p>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <div className="glass rounded-xl p-8 text-center">
           <p>Loading history...</p>
         </div>
       ) : history.length === 0 ? (
         <div className="glass rounded-xl p-8 text-center text-gray-400">
-          No prediction history yet
+          <p>No prediction history yet</p>
+          <p className="text-xs mt-2">Make some predictions to see them here</p>
         </div>
       ) : (
         <div className="glass rounded-xl p-4 overflow-x-auto">

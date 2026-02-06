@@ -25,12 +25,16 @@ export const settingsApi = {
   },
 
   async saveSetting(key: keyof AppSettings, value: boolean): Promise<void> {
-    await sendMessageToBackground('UPDATE_SETTING', { key, value }); // FIX: Changed to UPDATE_SETTING
+    await sendMessageToBackground('UPDATE_SETTING', { key, value }); 
+  },
+
+  async saveSettings(settings: AppSettings): Promise<void> {
+    await sendMessageToBackground('UPDATE_SETTINGS', settings);
   },
 
   async getLoginStatus(): Promise<boolean> {
     try {
-      const result = await sendMessageToBackground<boolean>('IS_AUTHENTICATED'); // FIX: Expect boolean directly
+      const result = await sendMessageToBackground<boolean>('IS_AUTHENTICATED');
       return result;
     } catch (error) {
       return false;

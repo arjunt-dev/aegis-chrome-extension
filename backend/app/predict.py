@@ -90,7 +90,7 @@ def predict_url(url: str):
             prob_phishing = 1 - final_prob_legit
             if prob_phishing < 0.10:
                 risk = -1
-                confidence=float(prob_phishing)
+                confidence=float(final_prob_legit)
             elif prob_phishing < 0.40:
                 risk = 0
                 confidence=float(prob_phishing)
