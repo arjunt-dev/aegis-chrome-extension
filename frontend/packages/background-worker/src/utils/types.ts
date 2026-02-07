@@ -23,13 +23,10 @@ export interface VaultItem {
   id: string;
   hostname: string;
   createdAt: string;
-  block: { enabled: boolean; datetime: string | null } | null;
-  history: { 
-    enabled: boolean; 
-    datetime: string | null;
-    prediction?: number; // ADD: store prediction result
-    confidence?: number; // ADD: store confidence
-  } | null;
+  lastChecked: string; // Last time this item was checked/updated
+  isBlocked: boolean; // Whether this site is blocked
+  prediction?: number; // Prediction result: 1 = phishing, -1 = safe
+  confidence?: number; // Confidence score
 }
 
 export interface EncryptedPayload {

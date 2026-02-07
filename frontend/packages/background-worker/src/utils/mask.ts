@@ -73,7 +73,24 @@ export async function importMasterKey(
     "raw",
     rawBytes,
     { name: "AES-GCM" },
-    false,
+    true, // Make extractable for session storage
+    ["encrypt", "decrypt"]
+  );
+}
+
+/* ===========================
+   MASTER KEY EXPORT/IMPORT (for session storage)
+=========================== */
+export async function exportMasterKey(key: CryptoKey): Promise<JsonWebKey> {
+  return CRYPTO.subtle.exportKey("jwk", key);
+}
+
+export async function importMasterKeyFromJWK(jwk: JsonWebKey): Promise<CryptoKey> {
+  return CRYPTO.subtle.importKey(
+    "jwk",
+    jwk,
+    { name: "AES-GCM" },
+    true,
     ["encrypt", "decrypt"]
   );
 }

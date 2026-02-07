@@ -7,8 +7,8 @@ export interface BlockItem {
   id: string;
   hostname: string;
   createdAt: string;
-  block: { enabled: boolean; datetime: string | null } | null;
-  history: { enabled: boolean; datetime: string | null } | null;
+  lastChecked: string;
+  isBlocked: boolean;
 }
 
 export default function BlockList() {
@@ -91,7 +91,7 @@ export default function BlockList() {
               <div className="flex-1">
                 <p className="text-sm md:text-base font-mono">{item.hostname}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Blocked:  {item.block?.datetime ? new Date(item.block.datetime).toLocaleString() : 'N/A'}
+                  Last Checked: {new Date(item.lastChecked).toLocaleString()}
                 </p>
               </div>
 

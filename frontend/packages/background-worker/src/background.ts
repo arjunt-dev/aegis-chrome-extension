@@ -8,6 +8,8 @@ import {
   hexToBuffer,
   bufferToHex,
   importMasterKey,
+  exportMasterKey,
+  importMasterKeyFromJWK,
 } from "./utils/mask";
 import {
   AppSettings,
@@ -148,6 +150,48 @@ async function clearSession() {
   MASTER_USER_KEY = null;
 }
 
+// Store MASTER_USER_KEY securely in session storage
+async function storeMasterKey(key: CryptoKey) {
+  try {
+    const jwk = await exportMasterKey(key);
+    await chrome.storage.session.set({ masterKeyJWK: jwk });
+    console.log("[Session] Master key stored securely");
+  } catch (error) {
+    console.error("[Session] Failed to store master key:", error);
+  }
+}
+
+// Restore MASTER_USER_KEY from session storage
+async function restoreMasterKey(): Promise<CryptoKey | null> {
+  try {
+    const result = await chrome.storage.session.get("masterKeyJWK");
+    if (result.masterKeyJWK) {
+      const key = await importMasterKeyFromJWK(result.masterKeyJWK);
+      console.log("[Session] Master key restored from session storage");
+      return key;
+    }
+    return null;
+  } catch (error) {
+    console.error("[Session] Failed to restore master key:", error);
+    return null;
+  }
+}
+
+// Ensure MASTER_USER_KEY is available for sync operations
+async function ensureMasterKey(): Promise<boolean> {
+  if (MASTER_USER_KEY) return true;
+  
+  // Try to restore from session storage
+  MASTER_USER_KEY = await restoreMasterKey();
+  if (MASTER_USER_KEY) {
+    console.log("[Session] Master key restored for sync operation");
+    return true;
+  }
+  
+  console.log("[Session] Master key not available - user needs to login");
+  return false;
+}
+
 // Merge local and remote vault items intelligently
 function mergeVaultItems(local: VaultItem[], remote: VaultItem[]): VaultItem[] {
   const merged = new Map<string, VaultItem>();
@@ -163,21 +207,14 @@ function mergeVaultItems(local: VaultItem[], remote: VaultItem[]): VaultItem[] {
     if (!existing) {
       merged.set(localItem.hostname, localItem);
     } else {
-      // Merge block status - prefer blocked over unblocked
-      if (localItem.block?.enabled) {
-        existing.block = localItem.block;
-      }
-      // Merge history - keep most recent prediction
-      if (localItem.history?.datetime && existing.history?.datetime) {
-        if (new Date(localItem.history.datetime) > new Date(existing.history.datetime)) {
-          existing.history = localItem.history;
+      // Keep the item with most recent lastChecked
+      if (new Date(localItem.lastChecked) > new Date(existing.lastChecked)) {
+        merged.set(localItem.hostname, localItem);
+      } else if (new Date(localItem.lastChecked).getTime() === new Date(existing.lastChecked).getTime()) {
+        // If same timestamp, prefer blocked items
+        if (localItem.isBlocked && !existing.isBlocked) {
+          merged.set(localItem.hostname, localItem);
         }
-      } else if (localItem.history) {
-        existing.history = localItem.history;
-      }
-      // Update timestamp to most recent
-      if (new Date(localItem.createdAt) > new Date(existing.createdAt)) {
-        existing.createdAt = localItem.createdAt;
       }
     }
   });
@@ -185,11 +222,17 @@ function mergeVaultItems(local: VaultItem[], remote: VaultItem[]): VaultItem[] {
   return Array.from(merged.values());
 }
 
-// Sync local blocklist to vault (encrypt and upload)
-async function syncBlocklistToVault() {
+// Sync local vault to server (renamed from syncBlocklistToVault)
+async function syncVaultToServer() {
   try {
-    if (!MASTER_USER_KEY || !ACCESS_TOKEN) {
+    // Ensure master key is available
+    if (!ACCESS_TOKEN) {
       console.log("[VaultSync] Not authenticated, skipping sync");
+      return;
+    }
+    
+    if (!await ensureMasterKey()) {
+      console.log("[VaultSync] Master key not available, skipping sync");
       return;
     }
 
@@ -199,10 +242,10 @@ async function syncBlocklistToVault() {
       return;
     }
 
-    const localBlocklist = await getBlocklist();
-    console.log("[VaultSync] Syncing", localBlocklist.length, "items to vault");
+    const localVault = await getVaultLocal();
+    console.log("[VaultSync] Syncing", localVault.length, "items to server");
 
-    // Get existing vault data
+    // Get existing remote vault data
     let remoteVault: VaultItem[] = [];
     try {
       const cached = await getEncryptedVault();
@@ -221,7 +264,7 @@ async function syncBlocklistToVault() {
     }
 
     // Merge local and remote
-    const merged = mergeVaultItems(localBlocklist, remoteVault);
+    const merged = mergeVaultItems(localVault, remoteVault);
     console.log("[VaultSync] Merged vault contains", merged.length, "items");
 
     // Encrypt and upload
@@ -229,21 +272,27 @@ async function syncBlocklistToVault() {
     await updateVault(encrypted);
     await storeEncryptedVault(encrypted);
     
-    // Update local blocklist with merged data
-    await saveBlocklist(merged);
+    // Update local storage with merged data
+    await saveVaultLocal(merged);
     await updateBlockingRules();
     
-    console.log("[VaultSync] ✓ Successfully synced to vault");
+    console.log("[VaultSync] ✓ Successfully synced to server");
   } catch (error) {
     console.error("[VaultSync] ❌ Failed to sync:", error);
   }
 }
 
-// Fetch and merge vault data to local blocklist
-async function syncVaultToLocal() {
+// Fetch and merge vault data from server to local storage
+async function syncVaultFromServer() {
   try {
-    if (!MASTER_USER_KEY || !ACCESS_TOKEN) {
+    // Ensure master key is available
+    if (!ACCESS_TOKEN) {
       console.log("[VaultSync] Not authenticated, skipping fetch");
+      return;
+    }
+    
+    if (!await ensureMasterKey()) {
+      console.log("[VaultSync] Master key not available, skipping fetch");
       return;
     }
 
@@ -253,7 +302,7 @@ async function syncVaultToLocal() {
       return;
     }
 
-    console.log("[VaultSync] Fetching vault data...");
+    console.log("[VaultSync] Fetching vault data from server...");
     const remoteEncrypted = await getVault();
     
     if (!remoteEncrypted) {
@@ -264,21 +313,21 @@ async function syncVaultToLocal() {
     // Decrypt remote vault
     const decrypted = await decryptString(remoteEncrypted, MASTER_USER_KEY);
     const remoteVault: VaultItem[] = JSON.parse(decrypted);
-    console.log("[VaultSync] Retrieved", remoteVault.length, "items from vault");
+    console.log("[VaultSync] Retrieved", remoteVault.length, "items from server");
 
-    // Get local blocklist
-    const localBlocklist = await getBlocklist();
+    // Get local vault
+    const localVault = await getVaultLocal();
     
     // Merge remote and local
-    const merged = mergeVaultItems(localBlocklist, remoteVault);
+    const merged = mergeVaultItems(localVault, remoteVault);
     console.log("[VaultSync] Merged contains", merged.length, "items");
 
-    // Update local storage
-    await saveBlocklist(merged);
+    // For authenticated users, store encrypted
+    await saveVaultLocal(merged);
     await updateBlockingRules();
     await storeEncryptedVault(remoteEncrypted);
     
-    console.log("[VaultSync] ✓ Successfully synced from vault");
+    console.log("[VaultSync] ✓ Successfully synced from server");
   } catch (error) {
     console.error("[VaultSync] ❌ Failed to fetch:", error);
   }
@@ -340,16 +389,173 @@ const isLocalhost = (urlString: string): boolean => {
   }
 };
 
-//Local Browser Blocklist Management
-async function getBlocklist(): Promise<VaultItem[]> {
-  const result = await chrome.storage.local.get("blocklist");
-  console.log(result);
-
-  return result.blocklist || [];
+//Unified Vault Management (replaces separate blocklist/history)
+async function getVaultLocal(): Promise<VaultItem[]> {
+  try {
+    // If authenticated with sync enabled, read from encrypted storage
+    if (ACCESS_TOKEN) {
+      const settings = await getSettings();
+      if (settings.syncBlocklist) {
+        // Ensure master key is available
+        if (await ensureMasterKey()) {
+          // Check if we need to migrate old format data
+          await migrateOldStorageFormat();
+          return await getVaultLocalEncrypted(MASTER_USER_KEY!);
+        }
+      }
+    }
+    // Otherwise, use plain storage (for non-authenticated users)
+    const result = await chrome.storage.local.get("vault_local");
+    return result.vault_local || [];
+  } catch (err) {
+    console.error("[VaultLocal] Error reading:", err);
+    return [];
+  }
 }
 
-async function saveBlocklist(list: VaultItem[]) {
-  await chrome.storage.local.set({ blocklist: list });
+async function saveVaultLocal(items: VaultItem[]) {
+  try {
+    // If authenticated with sync enabled, store encrypted
+    if (ACCESS_TOKEN) {
+      const settings = await getSettings();
+      if (settings.syncBlocklist) {
+        if (await ensureMasterKey()) {
+          await saveVaultLocalEncrypted(items, MASTER_USER_KEY!);
+          return;
+        }
+      }
+    }
+    await chrome.storage.local.set({ vault_local: items });
+  } catch (err) {
+    console.error("[VaultLocal] Error saving:", err);
+  }
+}
+
+// Migrate old storage format to new unified format
+async function migrateOldStorageFormat() {
+  try {
+    const [plainBlocklist, plainHistory, encBlocklist, encHistory] = await Promise.all([
+      chrome.storage.local.get("blocklist"),
+      chrome.storage.local.get("history"),
+      chrome.storage.local.get("blocklist_enc"),
+      chrome.storage.local.get("history_enc")
+    ]);
+
+    const itemsToMigrate = new Map<string, VaultItem>();
+
+    // Migrate plain text blocklist
+    if (plainBlocklist.blocklist?.length > 0) {
+      console.log("[Migration] Found", plainBlocklist.blocklist.length, "plain blocklist items");
+      plainBlocklist.blocklist.forEach((item: any) => {
+        itemsToMigrate.set(item.hostname, convertOldToNewFormat(item));
+      });
+    }
+
+    // Migrate plain text history
+    if (plainHistory.history?.length > 0) {
+      console.log("[Migration] Found", plainHistory.history.length, "plain history items");
+      plainHistory.history.forEach((item: any) => {
+        const existing = itemsToMigrate.get(item.hostname);
+        const converted = convertOldToNewFormat(item);
+        if (existing) {
+          // Merge with existing
+          if (converted.lastChecked > existing.lastChecked) {
+            existing.lastChecked = converted.lastChecked;
+            existing.prediction = converted.prediction;
+            existing.confidence = converted.confidence;
+          }
+        } else {
+          itemsToMigrate.set(item.hostname, converted);
+        }
+      });
+    }
+
+    // Migrate encrypted blocklist
+    if (encBlocklist.blocklist_enc && await ensureMasterKey()) {
+      try {
+        const decrypted = await decryptString(encBlocklist.blocklist_enc, MASTER_USER_KEY!);
+        const items = JSON.parse(decrypted);
+        console.log("[Migration] Found", items.length, "encrypted blocklist items");
+        items.forEach((item: any) => {
+          itemsToMigrate.set(item.hostname, convertOldToNewFormat(item));
+        });
+      } catch (err) {
+        console.error("[Migration] Error decrypting old blocklist:", err);
+      }
+    }
+
+    // Migrate encrypted history
+    if (encHistory.history_enc && await ensureMasterKey()) {
+      try {
+        const decrypted = await decryptString(encHistory.history_enc, MASTER_USER_KEY!);
+        const items = JSON.parse(decrypted);
+        console.log("[Migration] Found", items.length, "encrypted history items");
+        items.forEach((item: any) => {
+          const existing = itemsToMigrate.get(item.hostname);
+          const converted = convertOldToNewFormat(item);
+          if (existing) {
+            if (converted.lastChecked > existing.lastChecked) {
+              existing.lastChecked = converted.lastChecked;
+              existing.prediction = converted.prediction;
+              existing.confidence = converted.confidence;
+            }
+          } else {
+            itemsToMigrate.set(item.hostname, converted);
+          }
+        });
+      } catch (err) {
+        console.error("[Migration] Error decrypting old history:", err);
+      }
+    }
+
+    if (itemsToMigrate.size > 0) {
+      console.log("[Migration] Migrating", itemsToMigrate.size, "items to new format");
+      if (await ensureMasterKey()) {
+        await saveVaultLocalEncrypted(Array.from(itemsToMigrate.values()), MASTER_USER_KEY!);
+        
+        // Clean up old storage keys
+        await chrome.storage.local.remove(["blocklist", "history", "blocklist_enc", "history_enc"]);
+        console.log("[Migration] ✓ Migration complete, old storage cleaned up");
+      }
+    }
+  } catch (error) {
+    console.error("[Migration] Failed:", error);
+  }
+}
+
+// Convert old VaultItem format to new format
+function convertOldToNewFormat(oldItem: any): VaultItem {
+  const lastChecked = oldItem.history?.datetime || oldItem.block?.datetime || oldItem.createdAt || new Date().toISOString();
+  return {
+    id: oldItem.id || crypto.randomUUID(),
+    hostname: oldItem.hostname,
+    createdAt: oldItem.createdAt || new Date().toISOString(),
+    lastChecked,
+    isBlocked: oldItem.block?.enabled || false,
+    prediction: oldItem.history?.prediction,
+    confidence: oldItem.history?.confidence
+  };
+}
+
+// Backward compatibility wrappers
+async function getBlocklist(): Promise<VaultItem[]> {
+  const vault = await getVaultLocal();
+  return vault.filter(item => item.isBlocked);
+}
+
+// Encrypted storage helpers for authenticated users
+async function getVaultLocalEncrypted(key: CryptoKey): Promise<VaultItem[]> {
+  const result = await chrome.storage.local.get("vault_local_enc");
+  if (!result.vault_local_enc) return [];
+  const decrypted = await decryptString(result.vault_local_enc, key);
+  return JSON.parse(decrypted);
+}
+
+async function saveVaultLocalEncrypted(items: VaultItem[], key: CryptoKey) {
+  const encrypted = await encryptString(JSON.stringify(items), key);
+  await chrome.storage.local.set({ vault_local_enc: encrypted });
+  // Clear old storage formats for security
+  await chrome.storage.local.remove(["vault_local", "blocklist", "history", "blocklist_enc", "history_enc"]);
 }
 
 async function isBlocked(hostname: string): Promise<boolean> {
@@ -360,69 +566,70 @@ async function isBlocked(hostname: string): Promise<boolean> {
 
 async function addToBlocklist(hostname: string, predictionData?: { prediction: number, confidence: number }) {
   const normalizedHostname = getHostname(hostname);
-  const list = await getBlocklist();
+  const vault = await getVaultLocal();
   
   // Check if already exists
-  const existingIndex = list.findIndex((i) => i.hostname === normalizedHostname);
+  const existingIndex = vault.findIndex((i) => i.hostname === normalizedHostname);
+  const now = new Date().toISOString();
   
   if (existingIndex >= 0) {
-    // Update existing item with new prediction data if provided
+    // Update existing item
+    vault[existingIndex].isBlocked = true;
+    vault[existingIndex].lastChecked = now;
     if (predictionData) {
-      list[existingIndex].history = {
-        enabled: true,
-        datetime: new Date().toISOString(),
-        prediction: predictionData.prediction,
-        confidence: predictionData.confidence
-      };
-      list[existingIndex].block = { enabled: true, datetime: new Date().toISOString() };
-      await saveBlocklist(list);
-      console.log("[Blocklist] Updated:", normalizedHostname);
-      
-      // Sync to vault if enabled
-      const settings = await getSettings();
-      if (settings.syncBlocklist && MASTER_USER_KEY && ACCESS_TOKEN) {
-        await syncBlocklistToVault();
-      }
+      vault[existingIndex].prediction = predictionData.prediction;
+      vault[existingIndex].confidence = predictionData.confidence;
     }
-    return;
+    console.log("[Blocklist] Updated:", normalizedHostname);
+  } else {
+    // Add new item
+    vault.push({
+      id: crypto.randomUUID(),
+      hostname: normalizedHostname,
+      createdAt: now,
+      lastChecked: now,
+      isBlocked: true,
+      prediction: predictionData?.prediction,
+      confidence: predictionData?.confidence
+    });
+    console.log("[Blocklist] Added:", normalizedHostname);
   }
 
-  // Add new item
-  const newItem: VaultItem = {
-    id: crypto.randomUUID(),
-    hostname: normalizedHostname,
-    createdAt: new Date().toISOString(),
-    block: { enabled: true, datetime: new Date().toISOString()},
-    history: predictionData ? {
-      enabled: true,
-      datetime: new Date().toISOString(),
-      prediction: predictionData.prediction,
-      confidence: predictionData.confidence
-    } : { enabled: true, datetime: null },
-  };
-  
-  list.push(newItem);
-
-  await saveBlocklist(list);
+  await saveVaultLocal(vault);
   await updateBlockingRules();
-  console.log("[Blocklist] Added:", normalizedHostname);
   
   // Sync to vault if enabled
   const settings = await getSettings();
-  if (settings.syncBlocklist && MASTER_USER_KEY && ACCESS_TOKEN) {
-    await syncBlocklistToVault();
+  if (settings.syncBlocklist && ACCESS_TOKEN) {
+    if (await ensureMasterKey()) {
+      await syncVaultToServer();
+    }
   }
 }
 
 async function removeFromBlocklist(hostname: string) {
   const normalizedHostname = getHostname(hostname);
-  const list = await getBlocklist();
-  const filtered = list.filter((i) => i.hostname !== normalizedHostname);
-  console.log("filtered :", filtered);
+  const vault = await getVaultLocal();
+  
+  // Find and update the item instead of removing (to preserve history)
+  const item = vault.find(i => i.hostname === normalizedHostname);
+  if (item) {
+    item.isBlocked = false;
+    item.lastChecked = new Date().toISOString();
+    console.log("[Blocklist] Unblocked:", normalizedHostname);
+  }
 
-  await saveBlocklist(filtered);
+  await saveVaultLocal(vault);
   await updateBlockingRules();
-  console.log("[Blocklist] Removed:", normalizedHostname);
+  
+  // Sync deletion across devices
+  const settings = await getSettings();
+  if (settings.syncBlocklist && ACCESS_TOKEN) {
+    if (await ensureMasterKey()) {
+      console.log("[Blocklist] Syncing unblock across devices...");
+      await syncVaultToServer();
+    }
+  }
 }
 /* ============================================
    CHROME BLOCKING RULES
@@ -506,6 +713,29 @@ chrome.tabs.onUpdated.addListener(async (_, change, tab) => {
     console.log("[AutoPredict] Running prediction for:", tab.url);
     const result = await predictUrl(tab.url);
     console.log("[AutoPredict] Result:", result);
+
+    if (settings.saveHistory) {
+      const vault = await getVaultLocal();
+      const existingIndex = vault.findIndex(i => i.hostname === hostname);
+      const now = new Date().toISOString();
+      if (existingIndex >= 0) {
+        vault[existingIndex].prediction = result.prediction;
+        vault[existingIndex].confidence = result.confidence;
+        vault[existingIndex].lastChecked = now;
+      } else {
+        vault.push({
+          id: crypto.randomUUID(),  
+          hostname,
+          createdAt: now,
+          lastChecked: now,
+          isBlocked: false,
+          prediction: result.prediction,
+          confidence: result.confidence
+        });
+      }
+      await saveVaultLocal(vault);
+    }
+  
 
     if (result.prediction === 1) {
       console.log("[AutoPredict] ⚠️ PHISHING DETECTED:", hostname);
@@ -646,24 +876,27 @@ async function predictUrl(url: string) {
 
     const settings = await getSettings();
     console.log("[Predict] Result for", hostname, "is", data.prediction, "(confidence:", data.confidence, ")");
-    
-    // Handle phishing detection
+
     if (data.prediction === 1) {
       if (settings.autoBlock) {
         console.log("[AutoBlock] 🚫 Auto-blocking enabled - adding to blocklist:", hostname);
         await addToBlocklist(hostname, { prediction: data.prediction, confidence: data.confidence });
         console.log("[AutoBlock] ✓ Successfully added to blocklist:", hostname);
-      } else if (settings.syncBlocklist && MASTER_USER_KEY && ACCESS_TOKEN) {
-        // Even if auto-block is off, update vault with prediction if sync is enabled
-        console.log("[VaultSync] Updating vault with phishing detection:", hostname);
-        await updateVaultWithPrediction(hostname, data.prediction, data.confidence);
+      } else if (settings.syncBlocklist && ACCESS_TOKEN) {
+        if (await ensureMasterKey()) {
+          // Even if auto-block is off, update vault with prediction if sync is enabled
+          console.log("[VaultSync] Updating vault with phishing detection:", hostname);
+          await updateVaultWithPrediction(hostname, data.prediction, data.confidence);
+        }
       } else {
         console.log("[AutoBlock] Auto-blocking disabled in settings");
       }
-    } else if (settings.syncBlocklist && settings.saveHistory && MASTER_USER_KEY && ACCESS_TOKEN) {
-      // For safe URLs, update vault history if both sync and history are enabled
-      console.log("[VaultSync] Updating vault with safe URL history:", hostname);
-      await updateVaultWithPrediction(hostname, data.prediction, data.confidence);
+    } else if (settings.syncBlocklist && settings.saveHistory && ACCESS_TOKEN) {
+      if (await ensureMasterKey()) {
+        // For safe URLs, update vault history if both sync and history are enabled
+        console.log("[VaultSync] Updating vault with safe URL history:", hostname);
+        await updateVaultWithPrediction(hostname, data.prediction, data.confidence);
+      }
     }
 
     return data;
@@ -686,9 +919,11 @@ async function predictUrl(url: string) {
 // Update vault with prediction data (for authenticated users with sync enabled)
 async function updateVaultWithPrediction(hostname: string, prediction: number, confidence: number) {
   try {
-    if (!MASTER_USER_KEY || !ACCESS_TOKEN) return;
+    if (!ACCESS_TOKEN) return;
+    if (!await ensureMasterKey()) return;
 
     const normalizedHostname = getHostname(hostname);
+    const now = new Date().toISOString();
     
     // Get current vault
     let vaultItems: VaultItem[] = [];
@@ -710,26 +945,21 @@ async function updateVaultWithPrediction(hostname: string, prediction: number, c
       item = {
         id: crypto.randomUUID(),
         hostname: normalizedHostname,
-        createdAt: new Date().toISOString(),
-        block: prediction === 1 ? { enabled: true, datetime: new Date().toISOString() } : null,
-        history: {
-          enabled: true,
-          datetime: new Date().toISOString(),
-          prediction,
-          confidence
-        }
+        createdAt: now,
+        lastChecked: now,
+        isBlocked: prediction === 1, // Auto-block phishing if enabled
+        prediction,
+        confidence
       };
       vaultItems.push(item);
     } else {
       // Update existing item
-      item.history = {
-        enabled: true,
-        datetime: new Date().toISOString(),
-        prediction,
-        confidence
-      };
-      if (prediction === 1 && !item.block) {
-        item.block = { enabled: true, datetime: new Date().toISOString() };
+      item.lastChecked = now;
+      item.prediction = prediction;
+      item.confidence = confidence;
+      // If phishing and not already blocked, block it
+      if (prediction === 1 && !item.isBlocked) {
+        item.isBlocked = true;
       }
     }
 
@@ -738,6 +968,12 @@ async function updateVaultWithPrediction(hostname: string, prediction: number, c
     await updateVault(encrypted);
     await storeEncryptedVault(encrypted);
     
+    // Update local vault storage
+    const settings = await getSettings();
+    if (settings.syncBlocklist) {
+      await saveVaultLocal(vaultItems);
+    }
+    
     console.log("[VaultSync] ✓ Updated vault with prediction for:", normalizedHostname);
   } catch (error) {
     console.error("[VaultSync] Failed to update vault with prediction:", error);
@@ -745,26 +981,49 @@ async function updateVaultWithPrediction(hostname: string, prediction: number, c
 }
 
 async function getHistory(): Promise<VaultItem[]> {
-  const result = await chrome.storage.local.get("history");
-  return result.history || [];
-}
-
-async function saveHistory(history: VaultItem[]) {
-  await chrome.storage.local.set({ history });
+  const vault = await getVaultLocal();
+  // Return all items that have prediction data (history)
+  return vault.filter(item => item.prediction !== undefined);
 }
 
 async function addToHistory(item: VaultItem) {
-  const history = await getHistory();
-  history.unshift(item); // Add to beginning
-  // Keep only last 100 items
-  if (history.length > 100) {
-    history.splice(100);
+  const vault = await getVaultLocal();
+  
+  // Check if item already exists
+  const existingIndex = vault.findIndex(v => v.hostname === item.hostname);
+  if (existingIndex >= 0) {
+    // Update existing entry with new data
+    vault[existingIndex] = {
+      ...vault[existingIndex],
+      ...item,
+      lastChecked: item.lastChecked || new Date().toISOString()
+    };
+  } else {
+    vault.push(item);
   }
-  await saveHistory(history);
+  
+  // Keep only last 100 items in history
+  const historyItems = vault.filter(v => v.prediction !== undefined);
+  if (historyItems.length > 100) {
+    // Remove oldest non-blocked history items
+    historyItems
+      .filter(v => !v.isBlocked)
+      .sort((a, b) => new Date(a.lastChecked).getTime() - new Date(b.lastChecked).getTime())
+      .slice(0, historyItems.length - 100)
+      .forEach(old => {
+        const idx = vault.findIndex(v => v.id === old.id);
+        if (idx >= 0) vault.splice(idx, 1);
+      });
+  }
+  
+  await saveVaultLocal(vault);
 }
 
 async function clearHistory() {
-  await chrome.storage.local.set({ history: [] });
+  const vault = await getVaultLocal();
+  // Keep blocked items, remove others
+  const filtered = vault.filter(item => item.isBlocked);
+  await saveVaultLocal(filtered);
 }
 
 
@@ -788,10 +1047,10 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
           const oldSettings = await getSettings();
           await setSettings(message.payload);
           
-          // If syncBlocklist was just enabled, sync local data to vault
+          // If syncBlocklist was just enabled and user is authenticated
           if (!oldSettings.syncBlocklist && message.payload.syncBlocklist && MASTER_USER_KEY && ACCESS_TOKEN) {
-            console.log("[Settings] Sync blocklist enabled, syncing local data to vault...");
-            await syncBlocklistToVault();
+            console.log("[Settings] Sync enabled - migrating and syncing data...");
+            await syncVaultToServer();
           }
           
           sendResponse({ success: true });
@@ -805,10 +1064,10 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
           currentSettings[message.payload.key] = message.payload.value;
           await setSettings(currentSettings);
           
-          // If syncBlocklist was just enabled, sync local data to vault
+          // If syncBlocklist was just enabled and user is authenticated
           if (message.payload.key === 'syncBlocklist' && !oldValue && message.payload.value && MASTER_USER_KEY && ACCESS_TOKEN) {
-            console.log("[Settings] Sync blocklist enabled, syncing local data to vault...");
-            await syncBlocklistToVault();
+            console.log("[Settings] Sync enabled - migrating and syncing data...");
+            await syncVaultToServer();
           }
           
           sendResponse({ success: true });
@@ -819,20 +1078,16 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
           const result = await predictUrl(message.payload.url);
           
           // Save to local history if saveHistory enabled (for all users)
-          // This provides a quick local cache even for authenticated users
           const settings = await getSettings();
           if (settings.saveHistory) {
             await addToHistory({
               id: crypto.randomUUID(),
               hostname: getHostname(message.payload.url),
               createdAt: new Date().toISOString(),
-              block: null,
-              history: { 
-                enabled: true, 
-                datetime: new Date().toISOString(),
-                prediction: result.prediction,
-                confidence: result.confidence 
-              },
+              lastChecked: new Date().toISOString(),
+              isBlocked: false,
+              prediction: result.prediction,
+              confidence: result.confidence
             });
           }
           
@@ -886,39 +1141,16 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
 
         // ADD: History handlers
         case "GET_HISTORY": {
-          let allHistory: VaultItem[] = [];
-          
-          // Get local history (for non-authenticated or when saveHistory is enabled)
-          const localHistory = await getHistory();
-          allHistory = [...localHistory];
-          
-          // If authenticated and sync is enabled, also get history from vault/blocklist
-          const settings = await getSettings();
-          if (settings.syncBlocklist && MASTER_USER_KEY && ACCESS_TOKEN) {
-            try {
-              // Get blocklist items (which may contain prediction history from vault)
-              const blocklist = await getBlocklist();
-              // Filter items that have history data and aren't already in local history
-              const vaultHistory = blocklist.filter(item => 
-                item.history?.datetime && 
-                !allHistory.some(h => h.hostname === item.hostname)
-              );
-              allHistory = [...allHistory, ...vaultHistory];
-            } catch (err) {
-              console.error("[History] Error fetching vault history:", err);
-            }
-          }
+          const history = await getHistory();
           
           // Sort by most recent first
-          allHistory.sort((a, b) => {
-            const dateA = a.history?.datetime || a.createdAt;
-            const dateB = b.history?.datetime || b.createdAt;
-            return new Date(dateB).getTime() - new Date(dateA).getTime();
+          history.sort((a, b) => {
+            return new Date(b.lastChecked).getTime() - new Date(a.lastChecked).getTime();
           });
           
           sendResponse({
             success: true,
-            data: allHistory,
+            data: history,
           });
           break;
         }
@@ -994,11 +1226,14 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
             const masterKeyBytes = hexToBuffer(masterKeyHex);
             MASTER_USER_KEY = await importMasterKey(masterKeyBytes);
             
-            // After successful login, sync vault to local if syncBlocklist is enabled
+            // Store master key securely in session storage
+            await storeMasterKey(MASTER_USER_KEY);
+            
+            // After successful login, sync vault from server if syncBlocklist is enabled
             const settings = await getSettings();
             if (settings.syncBlocklist) {
-              console.log("[Login] Syncing vault data to local storage...");
-              await syncVaultToLocal();
+              console.log("[Login] Syncing vault data from server...");
+              await syncVaultFromServer();
             }
             
             sendResponse({ success: true });
@@ -1026,22 +1261,24 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
 
         case "UPDATE_VAULT": {
           requireAuth();
-          // This case is now handled by syncBlocklistToVault
-          // Keeping for backward compatibility
-          await syncBlocklistToVault();
+          await syncVaultToServer();
           sendResponse({ success: true });
           break;
         }
         
         case "SYNC_VAULT": {
           requireAuth();
-          await syncBlocklistToVault();
+          await syncVaultToServer();
           sendResponse({ success: true });
           break;
         }
 
         case "LOGOUT":
           await clearSession();
+          // Clear encrypted storage on logout for security
+          await chrome.storage.local.remove(["vault_local_enc", "vault_local", "blocklist_enc", "history_enc", "blocklist", "history"]);
+          // Clear master key from session storage
+          await chrome.storage.session.remove("masterKeyJWK");
           sendResponse({ success: true });
           break;
 
@@ -1062,8 +1299,7 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
 ============================================ */
 chrome.runtime.onInstalled.addListener(async () => {
   await chrome.storage.local.set({
-    blocklist: [],
-    history: [], 
+    vault_local: [], // Unified vault storage
     settings: { 
       autoPredict: false, 
       autoBlock: false,
@@ -1078,15 +1314,33 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 /* ============================================
-   STARTUP - Restore refresh token from storage and blocking rules
+   STARTUP - Restore session and migrate data if needed
 ============================================ */
 chrome.runtime.onStartup.addListener(async () => {
-  const storedRefreshToken = await getRefreshToken();
-  if (storedRefreshToken) {
-    console.log("[Startup] Refresh token restored from storage");
-  }
+  try {
+    const storedRefreshToken = await getRefreshToken();
+    if (storedRefreshToken) {
+      console.log("[Startup] Refresh token found in session storage");
+      
+      // Try to restore master key from session storage
+      MASTER_USER_KEY = await restoreMasterKey();
+      if (MASTER_USER_KEY) {
+        console.log("[Startup] ✓ Master key restored - sync enabled");
+        
+        // Try to restore access token if available
+        if (ACCESS_TOKEN) {
+          console.log("[Startup] Access token available - syncing vault");
+          await syncVaultFromServer();
+        }
+      } else {
+        console.log("[Startup] Master key not available - user needs to login");
+      }
+    }
 
-  // Restore blocking rules
-  await updateBlockingRules();
-  console.log("[Startup] Blocking rules restored");
+    // Restore blocking rules (will use encrypted storage if available)
+    await updateBlockingRules();
+    console.log("[Startup] Blocking rules restored");
+  } catch (error) {
+    console.error("[Startup] Error during startup:", error);
+  }
 });

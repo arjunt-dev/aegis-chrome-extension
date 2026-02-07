@@ -7,12 +7,10 @@ interface HistoryItem {
   id: string;
   hostname: string;
   createdAt: string;
-  history: {
-    enabled: boolean;
-    datetime: string | null;
-    prediction?: number;
-    confidence?: number;
-  } | null;
+  lastChecked: string;
+  isBlocked: boolean;
+  prediction?: number;
+  confidence?: number;
 }
 
 export default function PredictionHistory() {
@@ -24,9 +22,7 @@ export default function PredictionHistory() {
     setLoading(true);
     try {
       const response = await sendMessage('GET_HISTORY');
-      // Filter to only show items with history data
-      const historyItems = (response.data || []).filter((item: HistoryItem) => item.history !== null);
-      setHistory(historyItems);
+      setHistory(response.data || []);
       
       // Check authentication status
       const authResponse = await sendMessage('IS_AUTHENTICATED');
@@ -131,7 +127,7 @@ export default function PredictionHistory() {
                 <th className="py-2 px-2">Result</th>
                 <th className="py-2 px-2">URL</th>
                 <th className="py-2 px-2">Confidence</th>
-                <th className="py-2 px-2">Date</th>
+                <th className="py-2 px-2">Last Checked</th>
               </tr>
             </thead>
 
@@ -139,20 +135,18 @@ export default function PredictionHistory() {
               {history.map((item) => (
                 <tr key={item.id} className="border-b border-gray-800">
                   <td className="py-2 px-2">
-                    <span className={`font-semibold ${getResultColor(item.history?.prediction)}`}>
-                      {getResultLabel(item.history?.prediction)}
+                    <span className={`font-semibold ${getResultColor(item.prediction)}`}>
+                      {getResultLabel(item.prediction)}
                     </span>
                   </td>
                   <td className="py-2 px-2 font-mono text-xs">{item.hostname}</td>
                   <td className="py-2 px-2">
-                    {item.history?.confidence !== undefined 
-                      ? `${Math.round(item.history.confidence * 100)}%` 
+                    {item.confidence !== undefined 
+                      ? `${Math.round(item.confidence * 100)}%` 
                       : 'N/A'}
                   </td>
                   <td className="py-2 px-2 text-xs">
-                    {item.history?.datetime 
-                      ? new Date(item.history.datetime).toLocaleString() 
-                      : 'N/A'}
+                    {new Date(item.lastChecked).toLocaleString()}
                   </td>
                 </tr>
               ))}
