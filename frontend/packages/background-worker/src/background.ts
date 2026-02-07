@@ -278,7 +278,7 @@ async function syncVaultToServer() {
     
     console.log("[VaultSync] ✓ Successfully synced to server");
   } catch (error) {
-    console.error("[VaultSync] ❌ Failed to sync:", error);
+    console.error("[VaultSync]  Failed to sync:", error);
   }
 }
 
@@ -329,7 +329,7 @@ async function syncVaultFromServer() {
     
     console.log("[VaultSync] ✓ Successfully synced from server");
   } catch (error) {
-    console.error("[VaultSync] ❌ Failed to fetch:", error);
+    console.error("[VaultSync]  Failed to fetch:", error);
   }
 }
 
@@ -706,7 +706,7 @@ chrome.tabs.onUpdated.addListener(async (_, change, tab) => {
   try {
     if (await isBlocked(hostname)) {
       console.log("[AutoPredict] URL already blocked:", hostname);
-      chrome.action.setBadgeText({ text: "🚫", tabId: tab.id });
+      chrome.action.setBadgeText({ text: "", tabId: tab.id });
       return;
     }
 
@@ -738,8 +738,8 @@ chrome.tabs.onUpdated.addListener(async (_, change, tab) => {
   
 
     if (result.prediction === 1) {
-      console.log("[AutoPredict] ⚠️ PHISHING DETECTED:", hostname);
-      chrome.action.setBadgeText({ text: "⚠️", tabId: tab.id });
+      console.log("[AutoPredict]  PHISHING DETECTED:", hostname);
+      chrome.action.setBadgeText({ text: "!", tabId: tab.id });
       chrome.action.setBadgeBackgroundColor({ color: "#ff0000", tabId: tab.id });
 
       // Show notification
@@ -747,7 +747,7 @@ chrome.tabs.onUpdated.addListener(async (_, change, tab) => {
         chrome.notifications.create({
           type: "basic",
           iconUrl: "icon.png",
-          title: "⚠️ Aegis Warning - Phishing Detected!",
+          title: " Aegis Warning - Phishing Detected!",
           message: `Potential phishing site detected: ${hostname}. Click to view details.`,
           priority: 2,
         });
@@ -784,7 +784,7 @@ chrome.tabs.onUpdated.addListener(async (_, change, tab) => {
       setTimeout(() => chrome.action.setBadgeText({ text: "", tabId: tab.id }), 3000);
     }
   } catch (err) {
-    console.error("[AutoPredict] ❌ Error:", err);
+    console.error("[AutoPredict]  Error:", err);
     chrome.action.setBadgeText({ text: "!", tabId: tab.id });
     chrome.action.setBadgeBackgroundColor({ color: "#ffaa00", tabId: tab.id });
     setTimeout(() => chrome.action.setBadgeText({ text: "", tabId: tab.id }), 3000);
@@ -879,7 +879,7 @@ async function predictUrl(url: string) {
 
     if (data.prediction === 1) {
       if (settings.autoBlock) {
-        console.log("[AutoBlock] 🚫 Auto-blocking enabled - adding to blocklist:", hostname);
+        console.log("[AutoBlock]  Auto-blocking enabled - adding to blocklist:", hostname);
         await addToBlocklist(hostname, { prediction: data.prediction, confidence: data.confidence });
         console.log("[AutoBlock] ✓ Successfully added to blocklist:", hostname);
       } else if (settings.syncBlocklist && ACCESS_TOKEN) {
@@ -901,7 +901,7 @@ async function predictUrl(url: string) {
 
     return data;
   } catch (error: any) {
-    console.error("[Predict] ❌ Error details:", {
+    console.error("[Predict]  Error details:", {
       message: error.message,
       response: error.response?.data,
       status: error.response?.status,

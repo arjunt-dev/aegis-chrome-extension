@@ -80,7 +80,7 @@ export default function PredictionHistory() {
     <div className="min-h-screen w-full bg-primary text-gray-200 px-4 py-6">
       <Navbar />
       
-      <div className="flex items-center justify-between mb-4 mt-6">
+      <div className="flex items-center justify-between mb-4 mt-6 card-body">
         <h1 className="text-lg font-semibold flex items-center gap-2">
           <History className="w-6 h-6 text-teal-400" /> 
           Prediction History ({history.length})
