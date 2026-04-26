@@ -18,7 +18,7 @@ import {
   VaultItem,
   EncryptedPayload,
 } from "./utils/types";
-import { log } from "console";
+
 /* ============================================
    CONFIG
 ============================================ */
@@ -674,9 +674,9 @@ async function updateBlockingRules() {
 /* ============================================
    AUTO PREDICTION
 ============================================ */
-let lastChecked: string | null = null;
+const lastCheckedByTab = new Map<number, string>();
 
-chrome.tabs.onUpdated.addListener(async (_, change, tab) => {
+chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
   if (change.status !== "complete" || !tab.url) return;
   if (!tab.url || tab.url.startsWith("chrome") || tab.url.startsWith("chrome-extension")) return;
 
@@ -686,9 +686,9 @@ chrome.tabs.onUpdated.addListener(async (_, change, tab) => {
     return;
   }
 
-  const hostname = getHostname(tab.url); // Use hostname for comparison
-  if (hostname === lastChecked) return;
-  lastChecked = hostname;
+  const hostname = getHostname(tab.url); // Use hostname for per-tab deduplication
+  if (lastCheckedByTab.get(tabId) === hostname) return;
+  lastCheckedByTab.set(tabId, hostname);
 
   console.log("[AutoPredict] Checking URL:", tab.url, "| Hostname:", hostname);
 
@@ -698,9 +698,11 @@ chrome.tabs.onUpdated.addListener(async (_, change, tab) => {
     return;
   }
 
-  // Reset so same site can be rechecked later
+  // Reset so same site can be rechecked later (per-tab, so other tabs are unaffected)
   setTimeout(() => {
-    lastChecked = null;
+    if (lastCheckedByTab.get(tabId) === hostname) {
+      lastCheckedByTab.delete(tabId);
+    }
   }, 10000);
 
   try {
@@ -862,16 +864,15 @@ async function updateVault(vaultData: EncryptedPayload) {
 // Fix predictUrl function - Handle axios errors properly
 async function predictUrl(url: string) {
   try {
-    const fullUrl = getBaseUrl(url);
     const hostname = getHostname(url);
-    console.log("[Predict] Checking:", fullUrl);
+    console.log("[Predict] Checking:", url);
 
     if (isLocalhost(url)) {
       console.log("[Predict] Localhost detected - skipping prediction:", hostname);
       throw new Error("");
     }
 
-    const { data } = await axios.post("/predict", { url: fullUrl });
+    const { data } = await axios.post("/predict", { url });
     console.log("[Predict] Response:", data);
 
     const settings = await getSettings();
@@ -947,20 +948,16 @@ async function updateVaultWithPrediction(hostname: string, prediction: number, c
         hostname: normalizedHostname,
         createdAt: now,
         lastChecked: now,
-        isBlocked: prediction === 1, // Auto-block phishing if enabled
+        isBlocked: false, // Blocking is controlled separately by autoBlock + addToBlocklist
         prediction,
         confidence
       };
       vaultItems.push(item);
     } else {
-      // Update existing item
+      // Update existing item — preserve its isBlocked state
       item.lastChecked = now;
       item.prediction = prediction;
       item.confidence = confidence;
-      // If phishing and not already blocked, block it
-      if (prediction === 1 && !item.isBlocked) {
-        item.isBlocked = true;
-      }
     }
 
     // Encrypt and update vault
@@ -1079,7 +1076,9 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
           
           // Save to local history if saveHistory enabled (for all users)
           const settings = await getSettings();
-          if (settings.saveHistory) {
+          // Only save to local history if NOT in authenticated+synced mode.
+          // Authenticated+synced users have their history recorded by predictUrl → updateVaultWithPrediction.
+          if (settings.saveHistory && !(ACCESS_TOKEN && settings.syncBlocklist)) {
             await addToHistory({
               id: crypto.randomUUID(),
               hostname: getHostname(message.payload.url),
@@ -1297,17 +1296,21 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
 /* ============================================
    INIT
 ============================================ */
-chrome.runtime.onInstalled.addListener(async () => {
-  await chrome.storage.local.set({
-    vault_local: [], // Unified vault storage
-    settings: { 
-      autoPredict: false, 
-      autoBlock: false,
-      autoPopup: false,
-      saveHistory: false, 
-      syncBlocklist: false 
-    },
-  });
+chrome.runtime.onInstalled.addListener(async (details) => {
+  if (details.reason === "install") {
+    // Only initialize defaults on first install — updates must NOT reset user data
+    await chrome.storage.local.set({
+      vault_local: [], // Unified vault storage
+      settings: { 
+        autoPredict: false, 
+        autoBlock: false,
+        autoPopup: false,
+        saveHistory: false, 
+        syncBlocklist: false 
+      },
+    });
+    console.log("[Init] First install — storage initialized");
+  }
 
   await updateBlockingRules();
   console.log("[Init] Extension ready");

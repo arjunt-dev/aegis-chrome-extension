@@ -38,12 +38,22 @@ async def authenticate(email: str, password: str):
         user = await User.get(email=email)
         password_bytes = password.strip().encode('utf-8')
         ph.verify(user.password, password_bytes)
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account not verified. Please check your email for the OTP."
+            )
         if ph.check_needs_rehash(user.password):
             user.password = ph.hash(password_bytes)
             await user.save()
         return user
+    except HTTPException:
+        raise
     except (DoesNotExist, VerifyMismatchError):
-        return None
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password"
+        )
 
 async def verify_otp_for_user(user, code: str) -> bool:
     try:
@@ -96,11 +106,21 @@ async def refresh_access_token(refresh_token: str):
     try:
         payload = await verify_token(refresh_token, expected_type="refresh")
         user_id = payload.get("sub")
-        user= await User.get(id=user_id)
-        access_token,refresh_token = await issue_token(user)
-        return access_token,refresh_token
-    except HTTPException as e:
-        raise e
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload"
+            )
+        user = await User.get(id=user_id)
+        access_token, refresh_token = await issue_token(user)
+        return access_token, refresh_token
+    except HTTPException:
+        raise
+    except DoesNotExist:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found"
+        )
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security)):

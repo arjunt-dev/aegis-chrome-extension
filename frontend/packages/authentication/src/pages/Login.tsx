@@ -28,7 +28,7 @@ export default function Login() {
       }, 1500);
     }
     else {
-      setAlert({ type: "error", msg: response?.message || "Login failed. Please try again." });
+      setAlert({ type: "error", msg: response?.error || "Login failed. Please try again." });
     }
   };
 

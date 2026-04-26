@@ -22,7 +22,12 @@ def utc_to_local(dt: datetime) -> datetime:
 async def generate_otp(length: int = 6) -> str:
     while True:
         otp_code = ''.join(secrets.choice('0123456789') for _ in range(length))
-        exists = await Otp.filter(code=otp_code).exists()
+        # Only re-generate if an active (unused AND non-expired) OTP already exists with this code
+        exists = await Otp.filter(
+            code=otp_code,
+            is_used=False,
+            expires_at__gt=now_utc()
+        ).exists()
         if not exists:
             return otp_code
         

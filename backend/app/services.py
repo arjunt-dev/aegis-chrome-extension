@@ -1,10 +1,10 @@
 from fastapi_mail import FastMail, MessageSchema, MessageType
 from config import MAIL_CONFIG,logger
 async def send_otp_email(recipient: str, otp: str):
+    """
+    Send OTP to the specified email using Gmail via FastAPI-Mail.
+    """
     try:
-        """
-        Send OTP to the specified email using Gmail via FastAPI-Mail.
-        """
         subject = "Your Account Verification OTP"
         body = f"""
         <div style="font-family: Arial; line-height: 1.5;">

@@ -62,9 +62,12 @@ async def login(data: LoginRequest):
             salt=user.password_salt,
             enc_master_user=EncryptedPayload(**json.loads(user.encrypted_master_key) if isinstance(user.encrypted_master_key, str) else user.encrypted_master_key)
         )
+    except HTTPException:
+        # Re-raise 401 (invalid credentials) and 403 (unverified account) as-is
+        raise
     except Exception as e:
-        logger.warning(f"Failed login attempt for {safe_mail(data.email)}{str(e)}")
-        raise HTTPException(401,"Login failed")
+        logger.error(f"Unexpected error during login for {safe_mail(data.email)}: {str(e)}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Login failed due to an internal error")
 
 @router.post("/refresh")
 async def refresh_token(request: Request):
