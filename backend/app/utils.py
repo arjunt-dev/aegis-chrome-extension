@@ -3,10 +3,10 @@ import re
 import secrets
 
 from fastapi import HTTPException,status
-from models import Otp
+from.models import Otp
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-from config import TIMEZONE
+from .config import TIMEZONE
 
 APP_TIMEZONE = ZoneInfo(TIMEZONE)
 

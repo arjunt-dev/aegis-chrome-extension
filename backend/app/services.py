@@ -1,5 +1,5 @@
 from fastapi_mail import FastMail, MessageSchema, MessageType
-from config import MAIL_CONFIG,logger
+from .config import MAIL_CONFIG,logger
 async def send_otp_email(recipient: str, otp: str):
     """
     Send OTP to the specified email using Gmail via FastAPI-Mail.

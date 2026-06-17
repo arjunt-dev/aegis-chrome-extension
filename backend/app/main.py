@@ -2,10 +2,10 @@ import time
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from config import lifespan, DEBUG,EXTENSION_ID,logger
+from .config import lifespan, DEBUG,EXTENSION_ID,logger
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
-from routes import router   
+from .routes import router   
 from fastapi_limiter.depends import RateLimiter
 
 app = FastAPI(
@@ -85,5 +85,5 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={"body": "Unexpected error. Please check your input data."},
     )
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=5000, reload=True)
+# if __name__ == "__main__":
+#     uvicorn.run("main:app", host="127.0.0.1", port=5000, reload=True)

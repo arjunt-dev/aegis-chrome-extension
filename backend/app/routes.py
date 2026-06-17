@@ -1,17 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPBearer
-from predict import predict_url,logger
-from schemas import (
+from .predict import predict_url,logger
+from .schemas import (
     LoginRequest, LoginResponse, PredictionRequest, PredictionResponse, 
     SignupRequest, SignupResponse, OtpVerifyRequest, OtpVerifyResponse, VaultResponse, VaultUpdateRequest,
     EncryptedPayload
 )
-from security import authenticate, create_user, get_current_user, issue_token, refresh_access_token, verify_otp_for_user
-from models import User, Vault
+from .security import authenticate, create_user, get_current_user, issue_token, refresh_access_token, verify_otp_for_user
+from .models import User, Vault
 from tortoise.exceptions import IntegrityError
 from fastapi_limiter.depends import RateLimiter
-from utils import safe_mail
-import signals
+from .utils import safe_mail
+from . import signals
 import json
 
 router = APIRouter(prefix="/api", tags=["API"])

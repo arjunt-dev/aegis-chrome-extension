@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
 from tortoise.transactions import in_transaction
-from models import Otp
+from .models import Otp
 from tortoise.expressions import Q
-from logging_config import logger
+from .logging_config import logger
 async def cleanup_expired_otps():
     try:
         logger.info(f"[OTP Cleanup] Running cleanup at { datetime.now(timezone.utc)}")

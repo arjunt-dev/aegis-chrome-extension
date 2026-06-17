@@ -4,10 +4,10 @@ from argon2.exceptions import VerifyMismatchError
 from fastapi import HTTPException,status
 from fastapi.params import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from models import Otp,User
-from utils import now_utc, validate_password_strength
+from .models import Otp,User
+from .utils import now_utc, validate_password_strength
 import jwt
-from config import JWT_SETTINGS, SECRET_KEY
+from .config import JWT_SETTINGS, SECRET_KEY
 from tortoise.exceptions import DoesNotExist
 
 ph = PasswordHasher()

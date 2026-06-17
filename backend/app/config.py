@@ -5,11 +5,11 @@ import joblib
 from tortoise import Tortoise
 from dotenv import load_dotenv
 import os
-from tasks import cleanup_expired_otps
+from .tasks import cleanup_expired_otps
 from fastapi_mail import ConnectionConfig
 from fastapi_limiter import FastAPILimiter
 from redis.asyncio import Redis
-from logging_config import setup_logger,logger
+from .logging_config import setup_logger,logger
 
 load_dotenv()
 
@@ -24,7 +24,7 @@ TORTOISE_ORM = {
     "connections": {"default": DB_URL},
     "apps": {
         "models": {
-            "models": ["models", "aerich.models"],
+            "models": ["app.models", "aerich.models"],
             "default_connection": "default",
         },
     },

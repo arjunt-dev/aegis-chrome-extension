@@ -1,8 +1,8 @@
 from tortoise import signals
-from services import send_otp_email
-from utils import create_otp_for_user,safe_mail
-from models import User
-from logging_config import logger
+from .services import send_otp_email
+from .utils import create_otp_for_user,safe_mail
+from .models import User
+from .logging_config import logger
 @signals.post_save(User)
 async def user_post_save(sender, instance, created, using_db, update_fields):
     if created:
