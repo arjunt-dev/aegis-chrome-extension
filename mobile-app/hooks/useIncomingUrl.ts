@@ -30,7 +30,7 @@ function extractTargetUrl(incomingUrl: string): string | null {
 
 function navigateToAnalysis(url: string) {
   const encoded = encodeURIComponent(url);
-  router.push(`/url-analysis?url=${encoded}`);
+  router.replace(`/url-analysis?url=${encoded}`);
 }
 
 export function useIncomingUrl() {

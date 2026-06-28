@@ -13,6 +13,7 @@ import {
   Linking,
   Alert,
   TouchableOpacity,
+  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -57,6 +58,18 @@ export default function UrlAnalysisScreen() {
   useEffect(() => {
     checkAndAnalyze();
   }, [checkAndAnalyze]);
+
+  useEffect(() => {
+    const onBackPress = () => {
+      if (router.canGoBack()) {
+        return false;
+      }
+      router.replace('/(tabs)');
+      return true;
+    };
+    const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => subscription.remove();
+  }, []);
 
   const handleOpenUrl = async () => {
     try {
