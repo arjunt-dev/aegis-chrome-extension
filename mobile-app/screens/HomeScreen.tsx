@@ -18,6 +18,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { GlassCard } from '@/components/GlassCard';
 import { useBlocklist } from '@/context/BlocklistContext';
 import { Colors, Spacing, Typography, Radius } from '@/constants/theme';
+import { Search, Shield } from 'lucide-react-native';
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
@@ -125,7 +126,7 @@ export default function HomeScreen() {
             onPress={() => router.push('/(tabs)/blocked')}
             activeOpacity={0.75}
           >
-            <Text style={styles.actionIcon}>🛡️</Text>
+            <Text style={styles.actionIcon}><Shield color={"#ffffff"} width={"24px"} height={"24px"}/></Text>
             <Text style={styles.actionTitle}>Blocked URLs</Text>
             <Text style={styles.actionSubtitle}>{blockedCount} entries</Text>
           </TouchableOpacity>
@@ -134,7 +135,7 @@ export default function HomeScreen() {
             onPress={() => router.push('/url-analysis?url=https://example.com')}
             activeOpacity={0.75}
           >
-            <Text style={styles.actionIcon}>🔍</Text>
+            <Text style={styles.actionIcon}><Search color={"#ffffff"} width={"24px"} height={"24px"}/></Text>
             <Text style={styles.actionTitle}>Test Analysis</Text>
             <Text style={styles.actionSubtitle}>Try a scan</Text>
           </TouchableOpacity>
@@ -146,18 +147,17 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>How It Works</Text>
         <GlassCard>
           <Text style={styles.flowText}>
-            {'Click Link → Android opens AEGIS → ML analysis via backend API → Result shown → You decide: Open / Block / Cancel'}
+            {'Click Link → Android opens AEGIS → ML analysis  → Result shown → You decide: Open / Block / Cancel'}
           </Text>
         </GlassCard>
       </View>
 
-      {/* Warning notice */}
-      <GlassCard style={[styles.warningCard, { borderColor: Colors.accentYellowBorder }]}>
+      {/* <GlassCard style={[styles.warningCard, { borderColor: Colors.accentYellowBorder }]}>
         <Text style={styles.warningTitle}>⚠ Important Note</Text>
         <Text style={styles.warningText}>
           AEGIS requires an active connection to the prediction backend. Ensure the FastAPI service is running and reachable from your device.
         </Text>
-      </GlassCard>
+      </GlassCard> */}
     </ScrollView>
   );
 }

@@ -21,6 +21,7 @@ import { Header } from '@/components/Header';
 import { useBlocklist } from '@/context/BlocklistContext';
 import { Colors, Spacing, Typography, Radius } from '@/constants/theme';
 import { formatTimestamp, truncateUrl } from '@/utils/url';
+import {Shield} from 'lucide-react-native';
 import type { BlockedUrl, PredictionLabel } from '@/types';
 
 export default function BlockedUrlsScreen() {
@@ -105,7 +106,7 @@ export default function BlockedUrlsScreen() {
         ) : (
           <>
             <GlassCard style={[styles.summaryCard, { borderColor: Colors.accentRedBorder }]}>
-              <Text style={styles.summaryIcon}>🛡️</Text>
+              <Text style={styles.summaryIcon}><Shield color={"#ffffff"} width={"24px"} height={"24px"}/></Text>
               <View>
                 <Text style={styles.summaryTitle}>{blockedCount} URLs Blocked</Text>
                 <Text style={styles.summarySubtitle}>
@@ -177,7 +178,7 @@ function BlockedUrlCard({
 function EmptyState() {
   return (
     <View style={styles.emptyState}>
-      <Text style={styles.emptyIcon}>🛡️</Text>
+      <Text style={styles.emptyIcon}><Shield color={"#ffffff"} width={"24px"} height={"24px"}/></Text>
       <Text style={styles.emptyTitle}>No Blocked URLs</Text>
       <Text style={styles.emptySubtitle}>
         URLs you block during analysis will appear here. Open a link from any app to get started.

@@ -7,7 +7,9 @@ import type { PredictRequest, PredictResponse, PredictionLabel, AnalysisResult }
 
 // Configure this to your FastAPI backend URL
 // const IP_ADDRESS = "192.168.220.39"
-const API_BASE_URL = 'http://192.168.220.39:8000'; // Local development URL
+const IP_ADDRESS = "10.0.2.2";
+const PORT = 5000;
+const API_BASE_URL = `http://${IP_ADDRESS}:${PORT}`; // Local development URL
 
 function extractDomain(url: string): string {
   try {

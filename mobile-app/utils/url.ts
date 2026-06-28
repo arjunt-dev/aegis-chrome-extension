@@ -78,18 +78,6 @@ export function getPredictionLabel(prediction: PredictionLabel): string {
   return prediction.toUpperCase();
 }
 
-export function getPredictionIcon(prediction: PredictionLabel): string {
-  switch (prediction) {
-    case 'safe':
-      return '✓';
-    case 'suspicious':
-      return '⚠';
-    case 'phishing':
-      return '✕';
-    default:
-      return '?';
-  }
-}
 
 export function isValidUrl(url: string): boolean {
   try {

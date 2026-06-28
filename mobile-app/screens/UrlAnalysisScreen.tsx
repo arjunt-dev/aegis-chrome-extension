@@ -27,6 +27,7 @@ import { useBlocklist } from '@/context/BlocklistContext';
 import { Colors, Spacing, Typography, Radius } from '@/constants/theme';
 import { formatTimestamp, isValidUrl, extractDomain } from '@/utils/url';
 import type { PredictionLabel } from '@/types';
+import { Ban, Check, FishingHook, TriangleAlert } from 'lucide-react-native';
 
 export default function UrlAnalysisScreen() {
   const insets = useSafeAreaInsets();
@@ -119,7 +120,7 @@ export default function UrlAnalysisScreen() {
       <View style={[styles.root, { paddingTop: insets.top }]}>
         <Header title="URL Analysis" showBack onBack={handleCancel} />
         <View style={styles.centerContent}>
-          <Text style={styles.bigIcon}>⚠</Text>
+          <Text style={styles.bigIcon}><TriangleAlert color="#ffff00" width="24px" height="24px" /></Text>
           <Text style={styles.stateTitle}>Invalid URL</Text>
           <Text style={styles.stateSubtitle}>
             {url ? `"${url}" is not a valid HTTP/HTTPS URL.` : 'No URL was provided.'}
@@ -161,7 +162,7 @@ export default function UrlAnalysisScreen() {
           ]}
         >
           <View style={[styles.resultBanner, { borderColor: Colors.accentRedBorder, backgroundColor: Colors.accentRedDim }]}>
-            <Text style={styles.bigIcon}>🚫</Text>
+            <Text style={styles.bigIcon}><Ban color="#ff0000" width="24px" height="24px" /></Text>
             <Text style={[styles.bannerTitle, { color: Colors.accentRed }]}>BLOCKED</Text>
             <Text style={styles.bannerSubtitle}>This URL is in your blocklist</Text>
           </View>
@@ -201,7 +202,7 @@ export default function UrlAnalysisScreen() {
           ]}
         >
           <View style={[styles.resultBanner, { borderColor: Colors.accentRedBorder, backgroundColor: Colors.accentRedDim }]}>
-            <Text style={styles.bigIcon}>⚡</Text>
+            <Text style={styles.bigIcon}><TriangleAlert color="#ff0000" width="24px" height="24px" /></Text>
             <Text style={[styles.bannerTitle, { color: Colors.accentRed }]}>API ERROR</Text>
             <Text style={styles.bannerSubtitle}>{errorMessage}</Text>
           </View>
@@ -209,7 +210,7 @@ export default function UrlAnalysisScreen() {
           <UrlInfoCard url={url} domain={domain} />
 
           <GlassCard style={[styles.infoCard, { borderColor: Colors.accentYellowBorder }]}>
-            <Text style={[styles.infoCardTitle, { color: Colors.accentYellow }]}>⚠ Unable to Verify Safety</Text>
+            <Text style={[styles.infoCardTitle, { color: Colors.accentYellow }]}><TriangleAlert color={Colors.accentYellow} width="24px" height="24px" /> Unable to Verify Safety</Text>
             <Text style={styles.infoCardText}>
               The phishing detection backend could not be reached. Proceed with extreme caution or cancel.
             </Text>
@@ -255,7 +256,7 @@ export default function UrlAnalysisScreen() {
       ? Colors.accentYellowBorder
       : Colors.accentTealBorder;
 
-    const bannerIcon = isPhishing ? '🎣' : isSuspicious ? '⚠️' : '✅';
+    const bannerIcon = isPhishing ? <FishingHook color={Colors.accentRed} width="24px" height="24px" /> : isSuspicious ? <TriangleAlert color={Colors.accentYellow} width="24px" height="24px" /> : <Check color={Colors.accentTeal} width="24px" height="24px" />;
 
     return (
       <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -270,7 +271,7 @@ export default function UrlAnalysisScreen() {
           {/* Result Banner */}
           <View style={[styles.resultBanner, { backgroundColor: bannerBgColor, borderColor: bannerBorderColor }]}>
             <Text style={styles.bigIcon}>{bannerIcon}</Text>
-            <PredictionBadge prediction={pred} size="lg" />
+            <PredictionBadge prediction={pred} size="lg"  />
             <Text style={styles.bannerSubtitle}>
               {isPhishing
                 ? 'This URL shows strong signs of phishing activity'

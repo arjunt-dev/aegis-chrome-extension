@@ -7,9 +7,10 @@ import React from 'react';
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Typography } from '@/constants/theme';
+import { Home, Shield } from 'lucide-react-native';
 
 interface TabIconProps {
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   focused: boolean;
 }
@@ -46,7 +47,7 @@ export default function TabLayout() {
         options={{
           title: 'Home',
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="⬡" label="Home" focused={focused} />
+            <TabIcon icon={<Home color={"#ffffff"} width={"24px"} height={"24px"}/>} label="Home" focused={focused} />
           ),
         }}
       />
@@ -55,7 +56,7 @@ export default function TabLayout() {
         options={{
           title: 'Blocked',
           tabBarIcon: ({ focused }) => (
-            <TabIcon icon="🛡️" label="Blocked" focused={focused} />
+            <TabIcon icon={<Shield color={"#ffffff"} width={"24px"} height={"24px"}/>} label="Blocked" focused={focused} />
           ),
         }}
       />
@@ -68,6 +69,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 3,
     paddingTop: 6,
+    width: 60,
   },
   tabIconText: {
     fontSize: 22,

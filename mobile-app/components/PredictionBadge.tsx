@@ -11,7 +11,6 @@ import {
   getPredictionDimColor,
   getPredictionBorderColor,
   getPredictionLabel,
-  getPredictionIcon,
 } from '@/utils/url';
 import { Radius, Typography, Spacing } from '@/constants/theme';
 
@@ -25,8 +24,6 @@ export function PredictionBadge({ prediction, size = 'md' }: PredictionBadgeProp
   const bgColor = getPredictionDimColor(prediction);
   const borderColor = getPredictionBorderColor(prediction);
   const label = getPredictionLabel(prediction);
-  const icon = getPredictionIcon(prediction);
-
   const isLarge = size === 'lg';
   const isSm = size === 'sm';
 
@@ -39,6 +36,8 @@ export function PredictionBadge({ prediction, size = 'md' }: PredictionBadgeProp
           borderColor,
           paddingHorizontal: isLarge ? Spacing.lg : isSm ? Spacing.sm : Spacing.md,
           paddingVertical: isLarge ? Spacing.sm : isSm ? 3 : Spacing.xs,
+          alignContent: 'center',
+          marginHorizontal: "auto",
         },
       ]}
     >
@@ -52,7 +51,6 @@ export function PredictionBadge({ prediction, size = 'md' }: PredictionBadgeProp
           },
         ]}
       >
-        {icon}
       </Text>
       <Text
         style={[
