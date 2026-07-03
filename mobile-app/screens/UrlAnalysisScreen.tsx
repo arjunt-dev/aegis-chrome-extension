@@ -10,11 +10,14 @@ import {
   ScrollView,
   StyleSheet,
   ActivityIndicator,
-  Linking,
   Alert,
   TouchableOpacity,
   BackHandler,
+  Modal,
+  Linking,
+  FlatList,
 } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { GlassCard } from '@/components/GlassCard';
@@ -28,7 +31,19 @@ import { useBlocklist } from '@/context/BlocklistContext';
 import { Colors, Spacing, Typography, Radius } from '@/constants/theme';
 import { formatTimestamp, isValidUrl, extractDomain } from '@/utils/url';
 import type { PredictionLabel } from '@/types';
-import { Ban, Check, FishingHook, TriangleAlert } from 'lucide-react-native';
+import { Ban, Check, FishingHook, Globe, TriangleAlert, X } from 'lucide-react-native';
+
+// ─── Browser chooser config ───────────────────────────────────────────────────
+type BrowserOption = { id: string; name: string; testUrl: string; toUrl: (u: string) => string };
+const KNOWN_BROWSERS: BrowserOption[] = [
+  { id: 'chrome',     name: 'Google Chrome',   testUrl: 'googlechrome://',         toUrl: (u) => `googlechrome://${u.replace(/^https?:\/\//, '')}` },
+  { id: 'firefox',    name: 'Firefox',          testUrl: 'firefox://',              toUrl: (u) => `firefox://open-url?url=${encodeURIComponent(u)}` },
+  { id: 'edge',       name: 'Microsoft Edge',   testUrl: 'microsoft-edge-https://', toUrl: (u) => `microsoft-edge-${u}` },
+  { id: 'brave',      name: 'Brave',            testUrl: 'brave://',                toUrl: (u) => `brave://${u.replace(/^https?:\/\//, '')}` },
+  { id: 'opera',      name: 'Opera',            testUrl: 'opera://',                toUrl: (u) => `opera://${u.replace(/^https?:\/\//, '')}` },
+  { id: 'duckduckgo', name: 'DuckDuckGo',       testUrl: 'ddgQuickLink://',         toUrl: (u) => `ddgQuickLink://${u}` },
+];
+
 
 export default function UrlAnalysisScreen() {
   const insets = useSafeAreaInsets();
@@ -38,32 +53,28 @@ export default function UrlAnalysisScreen() {
   const [isBlocked, setIsBlocked] = useState(false);
   const [isBlockingInProgress, setIsBlockingInProgress] = useState(false);
   const [hasCheckedBlocklist, setHasCheckedBlocklist] = useState(false);
+  const [showBrowserSheet, setShowBrowserSheet] = useState(false);
+  const [availableBrowsers, setAvailableBrowsers] = useState<BrowserOption[]>([]);
+  const [checkingBrowsers, setCheckingBrowsers] = useState(false);
 
   const url = params.url ? decodeURIComponent(params.url) : '';
   const domain = extractDomain(url);
 
   const checkAndAnalyze = useCallback(async () => {
     if (!url) return;
-
-    // Check blocklist first
     const blocked = await isUrlBlocked(url);
     setIsBlocked(blocked);
     setHasCheckedBlocklist(true);
-
     if (!blocked && isValidUrl(url)) {
       await analyze(url);
     }
   }, [url, isUrlBlocked, analyze]);
 
-  useEffect(() => {
-    checkAndAnalyze();
-  }, [checkAndAnalyze]);
+  useEffect(() => { checkAndAnalyze(); }, [checkAndAnalyze]);
 
   useEffect(() => {
     const onBackPress = () => {
-      if (router.canGoBack()) {
-        return false;
-      }
+      if (router.canGoBack()) return false;
       router.replace('/(tabs)');
       return true;
     };
@@ -71,17 +82,46 @@ export default function UrlAnalysisScreen() {
     return () => subscription.remove();
   }, []);
 
-  const handleOpenUrl = async () => {
+  const navigateBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)');
+  };
+
+  // Opens the URL in the AEGIS built-in browser (Custom Tab).
+  const openInAegisBrowser = async () => {
+    setShowBrowserSheet(false);
     try {
-      const canOpen = await Linking.canOpenURL(url);
-      if (canOpen) {
-        await Linking.openURL(url);
-        router.back();
-      } else {
-        Alert.alert('Cannot Open URL', 'No app found to handle this URL.');
-      }
+      const res = await WebBrowser.openBrowserAsync(url, { showTitle: true, enableBarCollapsing: true });
+      if (res.type === 'dismiss' || res.type === 'cancel') navigateBack();
     } catch {
       Alert.alert('Error', 'Failed to open the URL.');
+    }
+  };
+
+  // Opens the URL in a specific external browser by its URI scheme.
+  const openInExternalBrowser = async (browser: BrowserOption) => {
+    setShowBrowserSheet(false);
+    try {
+      await Linking.openURL(browser.toUrl(url));
+      navigateBack();
+    } catch {
+      Alert.alert('Not Available', `Could not open in ${browser.name}. Try another browser.`);
+    }
+  };
+
+  // Shows the browser chooser sheet; discovers installed browsers first.
+  const handleOpenUrl = async () => {
+    setCheckingBrowsers(true);
+    try {
+      const checks = await Promise.all(
+        KNOWN_BROWSERS.map(async (b) => ({ ...b, available: await Linking.canOpenURL(b.testUrl) }))
+      );
+      setAvailableBrowsers(checks.filter((b) => b.available));
+    } catch {
+      setAvailableBrowsers([]);
+    } finally {
+      setCheckingBrowsers(false);
+      setShowBrowserSheet(true);
     }
   };
 
@@ -245,6 +285,14 @@ export default function UrlAnalysisScreen() {
             <ActionButton label="Cancel" onPress={handleCancel} variant="ghost" fullWidth />
           </View>
         </ScrollView>
+        <BrowserChooserSheet
+          visible={showBrowserSheet}
+          checking={checkingBrowsers}
+          browsers={availableBrowsers}
+          onSelect={openInExternalBrowser}
+          onAegis={openInAegisBrowser}
+          onClose={() => setShowBrowserSheet(false)}
+        />
       </View>
     );
   }
@@ -372,6 +420,14 @@ export default function UrlAnalysisScreen() {
             )}
           </View>
         </ScrollView>
+        <BrowserChooserSheet
+          visible={showBrowserSheet}
+          checking={checkingBrowsers}
+          browsers={availableBrowsers}
+          onSelect={openInExternalBrowser}
+          onAegis={openInAegisBrowser}
+          onClose={() => setShowBrowserSheet(false)}
+        />
       </View>
     );
   }
@@ -384,6 +440,54 @@ export default function UrlAnalysisScreen() {
         <ActivityIndicator color={Colors.accentTeal} size="large" />
       </View>
     </View>
+  );
+}
+
+// ─── Browser Chooser Sheet ────────────────────────────────────────────────────
+type SheetProps = {
+  visible: boolean;
+  checking: boolean;
+  browsers: BrowserOption[];
+  onSelect: (b: BrowserOption) => void;
+  onAegis: () => void;
+  onClose: () => void;
+};
+function BrowserChooserSheet({ visible, checking, browsers, onSelect, onAegis, onClose }: SheetProps) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={sheetStyles.backdrop} activeOpacity={1} onPress={onClose} />
+      <View style={sheetStyles.sheet}>
+        {/* Handle */}
+        <View style={sheetStyles.handle} />
+        {/* Header */}
+        <View style={sheetStyles.sheetHeader}>
+          <Text style={sheetStyles.sheetTitle}>Open URL With</Text>
+          <TouchableOpacity onPress={onClose} style={sheetStyles.closeBtn}>
+            <X color={"#ffffff"} width={20} height={20} />
+          </TouchableOpacity>
+        </View>
+        <Text style={sheetStyles.sheetSubtitle}>Choose a browser to open this URL</Text>
+
+        {checking ? (
+          <ActivityIndicator color={"#00e5c8"} style={{ marginVertical: 24 }} />
+        ) : (
+          <FlatList
+            data={browsers}
+            keyExtractor={(b) => b.id}
+            style={{ maxHeight: 280 }}
+            ListEmptyComponent={
+              <Text style={sheetStyles.emptyText}>No external browsers detected.</Text>
+            }
+            renderItem={({ item }) => (
+              <TouchableOpacity style={sheetStyles.browserRow} onPress={() => onSelect(item)} activeOpacity={0.7}>
+                <Text style={sheetStyles.browserEmoji}><Globe color={"#ffffff"} width={20} height={20} /></Text>
+                <Text style={sheetStyles.browserName}>{item.name}</Text>
+              </TouchableOpacity>
+            )}
+          />
+        )}
+      </View>
+    </Modal>
   );
 }
 
@@ -534,5 +638,89 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSizeXs,
     color: Colors.textMuted,
     textDecorationLine: 'underline',
+  },
+});
+
+const sheetStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  sheet: {
+    backgroundColor: '#1a1f2e',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderColor: '#2a3044',
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#3a4060',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  sheetSubtitle: {
+    fontSize: 13,
+    color: '#8892a4',
+    marginBottom: 16,
+  },
+  browserRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 4,
+    gap: 14,
+    borderRadius: 10,
+  },
+  browserEmoji: {
+    fontSize: 26,
+    width: 36,
+    textAlign: 'center',
+  },
+  browserName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#e8eaf0',
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#8892a4',
+    textAlign: 'center',
+    paddingVertical: 16,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#2a3044',
+    marginVertical: 8,
+  },
+  aegisRow: {
+    backgroundColor: 'rgba(0,229,200,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(0,229,200,0.2)',
+    marginTop: 4,
+  },
+  aegisNote: {
+    fontSize: 12,
+    color: '#00e5c8',
+    marginTop: 2,
   },
 });
