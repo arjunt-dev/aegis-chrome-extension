@@ -14,7 +14,6 @@ import {
   TouchableOpacity,
   BackHandler,
   Modal,
-  Linking,
   FlatList,
 } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
@@ -32,17 +31,13 @@ import { Colors, Spacing, Typography, Radius } from '@/constants/theme';
 import { formatTimestamp, isValidUrl, extractDomain } from '@/utils/url';
 import type { PredictionLabel } from '@/types';
 import { Ban, Check, FishingHook, Globe, TriangleAlert, X } from 'lucide-react-native';
-
+import BrowserLauncher from '@/modules/browser-launcher/src/index';
 // ─── Browser chooser config ───────────────────────────────────────────────────
-type BrowserOption = { id: string; name: string; testUrl: string; toUrl: (u: string) => string };
-const KNOWN_BROWSERS: BrowserOption[] = [
-  { id: 'chrome',     name: 'Google Chrome',   testUrl: 'googlechrome://',         toUrl: (u) => `googlechrome://${u.replace(/^https?:\/\//, '')}` },
-  { id: 'firefox',    name: 'Firefox',          testUrl: 'firefox://',              toUrl: (u) => `firefox://open-url?url=${encodeURIComponent(u)}` },
-  { id: 'edge',       name: 'Microsoft Edge',   testUrl: 'microsoft-edge-https://', toUrl: (u) => `microsoft-edge-${u}` },
-  { id: 'brave',      name: 'Brave',            testUrl: 'brave://',                toUrl: (u) => `brave://${u.replace(/^https?:\/\//, '')}` },
-  { id: 'opera',      name: 'Opera',            testUrl: 'opera://',                toUrl: (u) => `opera://${u.replace(/^https?:\/\//, '')}` },
-  { id: 'duckduckgo', name: 'DuckDuckGo',       testUrl: 'ddgQuickLink://',         toUrl: (u) => `ddgQuickLink://${u}` },
-];
+type BrowserOption = {
+    name: string;
+    packageName: string;
+};
+
 
 
 export default function UrlAnalysisScreen() {
@@ -102,7 +97,7 @@ export default function UrlAnalysisScreen() {
   const openInExternalBrowser = async (browser: BrowserOption) => {
     setShowBrowserSheet(false);
     try {
-      await Linking.openURL(browser.toUrl(url));
+      await BrowserLauncher.openExternal(url, browser.packageName);
       navigateBack();
     } catch {
       Alert.alert('Not Available', `Could not open in ${browser.name}. Try another browser.`);
@@ -111,19 +106,31 @@ export default function UrlAnalysisScreen() {
 
   // Shows the browser chooser sheet; discovers installed browsers first.
   const handleOpenUrl = async () => {
+
     setCheckingBrowsers(true);
+
     try {
-      const checks = await Promise.all(
-        KNOWN_BROWSERS.map(async (b) => ({ ...b, available: await Linking.canOpenURL(b.testUrl) }))
-      );
-      setAvailableBrowsers(checks.filter((b) => b.available));
-    } catch {
-      setAvailableBrowsers([]);
+
+        const browsers =
+            await BrowserLauncher.getInstalledBrowsers();
+
+        setAvailableBrowsers(browsers);
+
+        setShowBrowserSheet(true);
+
+    } catch (e) {
+
+        Alert.alert(
+            "Error",
+            "Unable to detect installed browsers."
+        );
+
     } finally {
-      setCheckingBrowsers(false);
-      setShowBrowserSheet(true);
+
+        setCheckingBrowsers(false);
+
     }
-  };
+};
 
   const handleBlockUrl = async () => {
     setIsBlockingInProgress(true);
@@ -473,7 +480,7 @@ function BrowserChooserSheet({ visible, checking, browsers, onSelect, onAegis, o
         ) : (
           <FlatList
             data={browsers}
-            keyExtractor={(b) => b.id}
+            keyExtractor={(b) => b.packageName}
             style={{ maxHeight: 280 }}
             ListEmptyComponent={
               <Text style={sheetStyles.emptyText}>No external browsers detected.</Text>
