@@ -120,6 +120,7 @@ export default function UrlAnalysisScreen() {
 
     } catch (e) {
 
+        console.error("Failed to detect installed browsers:", e);
         Alert.alert(
             "Error",
             "Unable to detect installed browsers."
@@ -398,7 +399,7 @@ export default function UrlAnalysisScreen() {
                   { color: isPhishing ? Colors.accentRed : Colors.accentYellow },
                 ]}
               >
-                {isPhishing ? '🔴 High Risk — Do Not Open' : '🟡 Caution Advised'}
+                {isPhishing ? 'High Risk — Do Not Open' : 'Caution Advised'}
               </Text>
               <Text style={styles.advisoryText}>
                 {isPhishing
@@ -468,7 +469,7 @@ type SheetProps = {
   onAegis: () => void;
   onClose: () => void;
 };
-function BrowserChooserSheet({ visible, checking, browsers, onSelect, onAegis, onClose }: SheetProps) {
+function BrowserChooserSheet({ visible, checking, browsers, onSelect, onClose }: SheetProps) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={sheetStyles.backdrop} activeOpacity={1} onPress={onClose} />

@@ -134,11 +134,11 @@ function BlockedUrlCard({
   entry,
   isRemoving,
   onRemove,
-}: {
+}: Readonly<{
   entry: BlockedUrl;
   isRemoving: boolean;
   onRemove: () => void;
-}) {
+}>) {
   return (
     <GlassCard style={styles.entryCard}>
       {/* Header row */}

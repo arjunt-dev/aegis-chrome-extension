@@ -51,13 +51,13 @@ aegis-project/
 
 ## Prerequisites
 
-| Tool | Version |
-|------|---------|
-| Node.js | ≥ 18 |
-| pnpm | ≥ 9 |
-| Expo CLI | ≥ 0.22 |
-| Android Studio | Latest |
-| JDK | 17+ |
+| Tool           | Version |
+| -------------- | ------- |
+| Node.js        | ≥ 18   |
+| pnpm           | ≥ 9    |
+| Expo CLI       | ≥ 0.22 |
+| Android Studio | Latest  |
+| JDK            | 17+     |
 
 ---
 
@@ -205,11 +205,13 @@ adb shell am start \
 **Endpoint:** `POST /predict`
 
 **Request:**
+
 ```json
 { "url": "https://example.com" }
 ```
 
 **Response:**
+
 ```json
 {
   "prediction": "phishing",
@@ -218,6 +220,7 @@ adb shell am start \
 ```
 
 Accepted `prediction` values (case-insensitive):
+
 - `safe`, `legitimate`, `benign` → mapped to **SAFE**
 - `suspicious` → mapped to **SUSPICIOUS**
 - `phishing`, `malicious`, `fraud` → mapped to **PHISHING**
@@ -236,10 +239,10 @@ Accepted `prediction` values (case-insensitive):
 
 ## Screens
 
-| Screen | Route | Description |
-|--------|-------|-------------|
-| Home | `/(tabs)/` | Branding, setup guide, stats |
-| Blocked URLs | `/(tabs)/blocked` | Manage the local blocklist |
+| Screen       | Route                     | Description                       |
+| ------------ | ------------------------- | --------------------------------- |
+| Home         | `/(tabs)/`              | Branding, setup guide, stats      |
+| Blocked URLs | `/(tabs)/blocked`       | Manage the local blocklist        |
 | URL Analysis | `/url-analysis?url=...` | Analysis results + action buttons |
 
 ---
@@ -263,11 +266,11 @@ Accent Yellow (WARN): #f59e0b
 
 ## Troubleshooting
 
-| Issue | Fix |
-|-------|-----|
-| API timeout | Check backend is running; adjust `API_BASE_URL` |
-| AEGIS not in app chooser | Reinstall after building with `expo run:android` |
-| Links not intercepted | Ensure intent filters are built into the native APK |
-| AsyncStorage error | Clear app data and retry |
+| Issue                    | Fix                                                 |
+| ------------------------ | --------------------------------------------------- |
+| API timeout              | Check backend is running; adjust`API_BASE_URL`    |
+| AEGIS not in app chooser | Reinstall after building with`expo run:android`   |
+| Links not intercepted    | Ensure intent filters are built into the native APK |
+| AsyncStorage error       | Clear app data and retry                            |
 
 > **Note:** Intent filters only work with a **development build** or **production build**. They do NOT work in Expo Go.

@@ -1,2 +1,2 @@
-pnpx expo prebuild
+pnpx expo prebuild --clean
 pnpm exec expo run:android
