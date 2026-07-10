@@ -246,9 +246,18 @@ export default function UrlAnalysisScreen() {
             <ActionButton label="Cancel" onPress={handleCancel} variant="ghost" fullWidth />
           </View>
         </ScrollView>
+        <BrowserChooserSheet
+          visible={showBrowserSheet}
+          checking={checkingBrowsers}
+          browsers={availableBrowsers}
+          onSelect={openInExternalBrowser}
+          onAegis={openInAegisBrowser}
+          onClose={() => setShowBrowserSheet(false)}
+        />
       </View>
     );
   }
+
 
   // ─── Error ───────────────────────────────────────────────────────────────────
   if (status === 'error') {
