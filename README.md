@@ -1,589 +1,306 @@
-# 🛡️ Aegis - Privacy-First Phishing Detection
+# Aegis: Privacy-First Phishing Detection System
 
-> **A zero-knowledge, AI-powered Chrome extension that detects and blocks phishing URLs in real-time**
+Aegis is a zero-knowledge, AI-powered system designed to detect and block phishing URLs in real-time. The project consists of three main components:
 
-Aegis is a privacy-focused security solution built with modern web technologies, featuring end-to-end encryption, machine learning-based threat detection, and a seamless user experience. All sensitive data is encrypted client-side before transmission, ensuring true zero-knowledge architecture.
-
----
-
-## 📋 Table of Contents
-
-- [Features](#-features)
-- [Architecture](#-architecture)
-- [Tech Stack](#-tech-stack)
-- [Prerequisites](#-prerequisites)
-- [Installation](#-installation)
-  - [Backend Setup](#backend-setup)
-  - [Frontend Setup](#frontend-setup)
-  - [Chrome Extension Installation](#chrome-extension-installation)
-- [Environment Variables](#-environment-variables)
-- [API Documentation](#-api-documentation)
-- [ML Model](#-ml-model)
-- [Security](#-security)
-- [Development](#-development)
-- [Project Structure](#-project-structure)
-- [Troubleshooting](#-troubleshooting)
+1. An asynchronous FastAPI backend with an integrated Machine Learning model.
+2. A Manifest V3 Chrome Extension that encrypts user data client-side before synchronization.
+3. An Android mobile application built with React Native and Expo that intercepts URLs at the system level.
 
 ---
 
-## ✨ Features
+## Project Architecture
 
-### 🔐 Security & Privacy
-- **Zero-Knowledge Architecture**: All sensitive data encrypted using AES-GCM in-browser before transmission
-- **Client-Side Encryption**: Master keys never leave the user's device in plaintext
-- **Argon2 Password Hashing**: Industry-standard secure password storage
-- **JWT Authentication**: Stateless authentication with access and refresh tokens
-- **PBKDF2 Key Derivation**: Secure key derivation from user passwords
+Aegis uses a three-tier architecture:
 
-### 🤖 Machine Learning
-- **Real-Time Phishing Detection**: Instant URL analysis using ensemble ML models
-- **High Accuracy**: Stacked classifier combining CatBoost, Extra Trees, Random Forest, and Logistic Regression
-- **Feature-Rich Analysis**: 16+ URL features including entropy, domain characteristics, and suspicious patterns
-- **Trained on 100k+ URLs**: LegitPhish dataset for robust threat detection
-
-### 🚀 User Experience
-- **Instant Predictions**: Fast URL risk assessment with confidence scores
-- **URL Blocking**: Automatically block suspicious URLs
-- **Prediction History**: Track and review past URL checks
-- **Sync Across Devices**: Cloud-synced blocklists for logged-in users
-- **OTP Email Verification**: Secure account activation via email OTP
-
-### ⚙️ Technical Excellence
-- **Manifest V3 Compliant**: Latest Chrome extension standards
-- **Background Service Worker**: Efficient API proxying and storage management
-- **Rate Limiting**: Redis-backed rate limiting for API protection
-- **Automatic Token Refresh**: Seamless authentication experience
-- **Monorepo Architecture**: Clean separation of concerns with pnpm workspaces
+- Chrome Extension / Frontend: Written in React 18, Vite, and Tailwind. It performs client-side encryption using the Web Crypto API (AES-GCM, PBKDF2) so that user vaults remain secure and private.
+- Mobile Application: Written in React Native and Expo. It handles OS-level intent filters to intercept HTTP/HTTPS links, checks a local blocklist, and prompts users before opening URLs.
+- Backend: An async FastAPI server that hosts the ML threat detection engine, manages JWT-based user authentication, and provides encrypted vault storage. It uses SQLite for persistence and Redis for rate-limiting.
 
 ---
 
-## 🏗️ Architecture
+## Directory Structure
 
-Aegis follows a three-tier architecture:
+aegis-project/
+├── backend/                  # FastAPI prediction and authentication backend
+│   └── app/                  # Application code, ML models, and configuration
+├── frontend/                 # Chrome extension monorepo
+│   ├── packages/             # React packages for auth, settings, and popup UI
+│   ├── static/               # Manifest files and assets
+│   └── aegis-dist/           # Compiled extension output
+└── mobile-app/               # React Native Android app (Expo build)
+    ├── app/                  # File-based routing setup
+    ├── screens/              # UI screens (Home, Analysis, Blocked List)
+    ├── components/           # UI components
+    ├── hooks/                # URL interception and analysis hooks
+    └── services/             # API integration
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Chrome Extension (Frontend)               │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │   Popup UI   │  │  Settings UI │  │   Auth UI    │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-│                           │                                  │
-│                  ┌────────▼────────┐                         │
-│                  │ Background      │                         │
-│                  │ Service Worker  │                         │
-│                  │ (API Proxy +    │                         │
-│                  │  Encryption)    │                         │
-│                  └────────┬────────┘                         │
-└───────────────────────────┼──────────────────────────────────┘
-                            │ HTTPS
-                  ┌─────────▼──────────┐
-                  │   FastAPI Backend  │
-                  │  ┌──────────────┐  │
-                  │  │  ML Engine   │  │
-                  │  ├──────────────┤  │
-                  │  │  Auth System │  │
-                  │  ├──────────────┤  │
-                  │  │  Vault API   │  │
-                  │  └──────────────┘  │
-                  │         │           │
-                  │  ┌──────▼──────┐   │
-                  │  │   SQLite    │   │
-                  │  └─────────────┘   │
-                  └────────────────────┘
-                            │
-                  ┌─────────▼──────────┐
-                  │   Redis (Rate      │
-                  │   Limiting)        │
-                  └────────────────────┘
+---
+
+## Prerequisites
+
+To run and develop the Aegis system, the following tools are required:
+
+- Node.js (version 22 or higher)
+- pnpm (package manager for frontend)
+- Python (version 3.12 or higher)
+- uv (Python package installer)
+- Redis (for backend rate limiting)
+- Git (for version control)
+- Android Studio & JDK 17+ (for building the mobile app)
+
+---
+
+## Installation and Setup
+
+### 1. FastAPI Backend Setup
+
+First, navigate to the backend directory:
+
+```bash
+cd backend
 ```
 
----
+Ensure uv is installed:
 
-## 🛠️ Tech Stack
+```bash
+pip install uv
+```
 
-### Backend
-- **FastAPI** - Modern async web framework with automatic OpenAPI docs
-- **Tortoise ORM** - Async ORM for database operations
-- **SQLite** - Lightweight database for data persistence
-- **Redis** - In-memory store for rate limiting
-- **Argon2-cffi** - Secure password hashing
-- **PyJWT** - JSON Web Token implementation
-- **Pydantic** - Data validation and settings management
-- **FastAPI-Mail** - Email service for OTP delivery
-- **APScheduler** - Background task scheduling (OTP cleanup)
-- **FastAPI-Limiter** - Rate limiting middleware
+Install the backend dependencies:
 
-### Frontend
-- **React 18** - UI library with TypeScript
-- **React Router** - Client-side routing
-- **Tailwind CSS** - Utility-first CSS framework
-- **Vite** - Fast build tool and dev server
-- **Axios** - HTTP client with interceptors
-- **pnpm** - Fast, disk space efficient package manager
-- **Monorepo** - Multiple packages in a single repository
+```bash
+uv sync
+```
 
-### Machine Learning
-- **Scikit-Learn 1.6.1** - Core ML library
-- **CatBoost** - Gradient boosting library
-- **pandas** - Data manipulation and analysis
-- **joblib** - Model serialization
-- **Ensemble Learning** - Stacked classifier approach
-  - Base Models: LogisticRegression, ExtraTrees, RandomForest, CatBoost
-  - Meta Model: LogisticRegression
+Configure  environment variables. Copy the example template:
 
-### Chrome Extension
-- **Manifest V3** - Latest Chrome extension specification
-- **Web Crypto API** - Browser-native cryptography (AES-GCM, PBKDF2)
-- **Service Workers** - Background script architecture
-- **Chrome Storage API** - Persistent local storage
-- **Declarative Net Request** - URL blocking capabilities
+```bash
+cp app/.env.example app/.env
+```
 
----
+Open the newly created `app/.env` file and fill in the required settings:
 
-## 📦 Prerequisites
+- MAIL_USERNAME and MAIL_PASSWORD: Use  Gmail address and a Gmail App Password if wanted for OTP email verification.
+- REDIS_URL: Typically set to redis://localhost:6379.
+- SECRET_KEY: A secure random string for signing JWT tokens.
 
-### Required
-- **Python 3.12+** - Backend runtime
-- **Node.js 22+** - Frontend runtime
-- **pnpm** - Package manager for frontend
-- **uv** - Fast Python package installer
-- **Redis** - For rate limiting (or use Docker)
-- **Git** - Version control
+Start Redis server.  It can be run locally or via Docker:
 
-### Optional
-- **Docker** - For containerized services
-- **Gmail Account** - For OTP email delivery (with App Password)
+```bash
+# Via Docker
+docker run -d -p 6379:6379 redis:alpine
+```
 
----
+Initialize the database and run migrations:
 
-## 🚀 Installation
+```bash
+cd app
+uv run aerich init -t config.TORTOISE_ORM
+uv run aerich init-db
+```
 
-### Backend Setup
+Start the development server:
 
-1. **Clone the Repository**
-   ```bash
-   git clone https://github.com/arjunt-dev/aegis-chrome-extension.git
-   cd aegis-chrome-extension/backend
-   ```
+```bash
+uv run uvicorn main:app --reload --host 0.0.0.0 --port 5000
+```
 
-2. **Install uv (Python Package Installer)**
-   ```bash
-   pip install uv
-   ```
+The API documentation will be available locally at: http://localhost:5000/docs
 
-3. **Install Dependencies**
-   ```bash
-   uv sync
-   ```
+### 2. Chrome Extension Setup
 
-4. **Configure Environment Variables**
-   
-   Create a `.env` file in `backend/app/`:
-   ```bash
-   cp app/.env.example app/.env
-   ```
-   
-   Edit `app/.env` with your credentials:
-   ```env
-   # Email Configuration (Gmail)
-   MAIL_USERNAME=your-email@gmail.com
-   MAIL_PASSWORD=your-app-password  # Get from Gmail Security Settings
-   
-   # Redis Configuration
-   REDIS_URL=redis://localhost:6379
-   
-   # Security
-   SECRET_KEY=your-super-secret-key-change-this-in-production
-   DEBUG=True
-   ```
+Go to the frontend directory:
 
-5. **Start Redis Server**
-   ```bash
-   # Option 1: Local Redis
-   redis-server
-   
-   # Option 2: Docker
-   docker run -d -p 6379:6379 redis:alpine
-   ```
+```bash
+cd frontend
+```
 
-6. **Run Database Migrations**
-   ```bash
-   cd app
-   uv run aerich init -t config.TORTOISE_ORM
-   uv run aerich init-db
-   ```
+Install dependencies:
 
-7. **Start the Backend Server**
-   ```bash
-   # From backend/app directory
-   uv run uvicorn main:app --reload --host 0.0.0.0 --port 5000
-   ```
+```bash
+pnpm install
+```
 
-   The API will be available at: `http://localhost:5000`
-   
-   API Documentation: `http://localhost:5000/docs`
+To run the extension in development mode with hot-reloading:
 
-### Frontend Setup
+```bash
+pnpm dev
+```
 
-1. **Navigate to Frontend Directory**
-   ```bash
-   cd frontend
-   ```
+To build a production version:
 
-2. **Install pnpm (if not already installed)**
-   ```bash
-   npm install -g pnpm
-   ```
+```bash
+pnpm run build
+```
 
-3. **Install Dependencies**
-   ```bash
-   pnpm install
-   ```
+The built files will be outputted to `frontend/aegis-dist`.
 
-4. **Build the Extension**
-   ```bash
-   # Production build
-   pnpm run build
-   
-   # Development mode (with hot reload)
-   pnpm dev
-   ```
+To install the extension in Chrome:
 
-   The built extension will be in `frontend/aegis-dist/`
+1. Open Chrome and head to chrome://extensions/
+2. Toggle "Developer mode" in the top-right corner.
+3. Click "Load unpacked" in the top-left corner.
+4. Select the `frontend/aegis-dist` directory.
 
-### Chrome Extension Installation
+### 3. Mobile App (Android) Setup
 
-1. **Open Chrome Extensions Page**
-   - Navigate to `chrome://extensions/`
-   - Enable "Developer mode" (toggle in top right)
+Go to the mobile-app directory:
 
-2. **Load Unpacked Extension**
-   - Click "Load unpacked"
-   - Select the `frontend/aegis-dist` folder
+```bash
+cd mobile-app
+```
 
-3. **Verify Installation**
-   - The Aegis icon should appear in your Chrome toolbar
-   - Click it to open the extension popup
+Install dependencies:
 
-4. **First Time Setup**
-   - Click on the extension icon
-   - Sign up for a new account
-   - Verify your email with the OTP sent to your inbox
-   - Start protecting yourself from phishing!
+```bash
+pnpm install
+```
+
+Configure the API base URL in `services/prediction.ts`. Update the API_BASE_URL variable to point to the backend
+
+- If testing on the Android Emulator, use: http://10.0.2.2:5000 (assuming the backend runs on port 5000)
+- If testing on a physical device, use machine's local IP: e.g. http://192.168.x.x:5000
+
+Because the app registers Android intent filters at the native level, it requires a development build rather than Expo Go.
+
+Build and run locally:
+
+```bash
+pnpx expo run:android
+```
+
+Alternatively, build using EAS:
+
+```bash
+pnpx eas build --platform android --profile development
+```
+
+Once installed, configure Aegis as default browser under Android Settings -> Apps -> Default Apps -> Browser App. This ensures Aegis intercepts links clicked in other applications.
 
 ---
 
-## 🔧 Environment Variables
+## Android Interception & User Flow
 
-### Backend (`backend/app/.env`)
+When a user clicks a link in another app:
 
-| Variable | Description | Required | Default |
-|----------|-------------|----------|---------|
-| `SECRET_KEY` | JWT signing key | Yes | - |
-| `DEBUG` | Enable debug mode | No | `True` |
-| `MAIL_USERNAME` | Gmail address for OTP | Yes | - |
-| `MAIL_PASSWORD` | Gmail app password | Yes | - |
-| `MAIL_SERVER` | SMTP server | No | `smtp.gmail.com` |
-| `MAIL_PORT` | SMTP port | No | `587` |
-| `REDIS_URL` | Redis connection URL | Yes | `redis://localhost:6379` |
+1. Aegis intercepts the click and launches its URL Analysis screen.
+2. It checks the local SQLite/AsyncStorage blocklist. If the link is blocked, it shows a warnings page.
+3. If not blocked, it makes an API request to the backend (/predict endpoint).
+4. The prediction result determines the screen state:
+   - Safe (Teal UI): Let the user proceed to open the URL, block it, or cancel.
+   - Suspicious (Yellow UI): Warns the user, offering options to open with caution, block, or cancel.
+   - Phishing (Red UI): Disables the default "open" action, allowing only "block" or "cancel" (an override is hidden for advanced users).
 
-### Getting Gmail App Password
+### Deep Link Testing
 
-1. Go to [Google Account Security](https://myaccount.google.com/security)
-2. Enable 2-Step Verification
-3. Go to "App passwords"
-4. Generate a new app password for "Mail"
-5. Use this 16-character password in your `.env` file
+Users can also launch Aegis manually using this deep link structure:
+
+```
+aegis://analyze?url=https://example.com
+```
+
+Alternatively, test via ADB command:
+
+```bash
+adb shell am start \
+  -a android.intent.action.VIEW \
+  -d "https://suspicious-example.com" \
+  com.aegis.shield
+```
 
 ---
 
-## 📚 API Documentation
+## Machine Learning Model
 
-Once the backend is running, visit `http://localhost:5000/docs` for interactive API documentation.
+Aegis uses a stacked ensemble model:
 
-### Key Endpoints
+- Level 1: CatBoost, Extra Trees, Random Forest, and Logistic Regression.
+- Level 2: Logistic Regression (Meta-classifier combining the base predictions).
 
-#### Authentication
-- **POST** `/api/signup` - Create new user account
-- **POST** `/api/login` - Authenticate user
-- **POST** `/api/verify-otp` - Verify email with OTP
-- **POST** `/api/refresh` - Refresh access token
-- **POST** `/api/logout` - Logout user
+The model is trained on over 100,000 URLs from the LegitPhish dataset. It extracts 16 features from every checked URL, including:
 
-#### Prediction
-- **POST** `/api/predict` - Analyze URL for phishing
+- url_length: Total characters.
+- has_ip_address: Checks if an IP is used instead of a domain.
+- dot_count: Number of dots in the URL.
+- https_flag: Protocol check.
+- url_entropy: Shannon entropy.
+- token_count, subdomain_count, query_param_count, path_length, domain_name_length, and character statistics.
+
+The API response for URL validation is structured as follows:
+
+- Endpoint: POST /api/predict
+- Request payload:
+
   ```json
   {
     "url": "https://example.com"
   }
   ```
-  Response:
+- Response payload:
+
   ```json
   {
-    "prediction": 1,      // -1: Safe, 0: Suspicious, 1: Phishing
-    "confidence": 0.95    // Confidence score (0-1)
+    "prediction": 1,
+    "confidence": 0.95
   }
   ```
 
-#### Vault (Encrypted Storage)
-- **GET** `/api/vault` - Retrieve encrypted vault data
-- **POST** `/api/vault` - Update encrypted vault data
+  Where prediction value is:- -1: Safe
 
-### Rate Limits
-- Signup: 5 requests per 5 minutes
-- Prediction: 20 requests per minute
+  - 0: Suspicious
+  - 1: Phishing
 
----
-
-## 🧠 ML Model
-
-### Architecture: Stacked Ensemble Classifier
-
-Aegis uses a two-level stacking approach for maximum accuracy:
-
-**Level 1 - Base Models:**
-1. **CatBoost** - Handles categorical features well
-2. **Extra Trees** - Reduces overfitting through randomization
-3. **Random Forest** - Robust ensemble method
-4. **Logistic Regression** - Linear baseline model
-
-**Level 2 - Meta Model:**
-- **Logistic Regression** - Combines base model predictions
-
-### Features Extracted (16 total)
-
-| Feature | Description |
-|---------|-------------|
-| `url_length` | Total characters in URL |
-| `has_ip_address` | Contains IP instead of domain |
-| `dot_count` | Number of dots in URL |
-| `https_flag` | Uses HTTPS protocol |
-| `url_entropy` | Shannon entropy of URL |
-| `token_count` | Number of tokens in URL |
-| `subdomain_count` | Number of subdomains |
-| `query_param_count` | Number of query parameters |
-| `tld_length` | Length of TLD |
-| `path_length` | Length of URL path |
-| `has_hyphen_in_domain` | Hyphen in domain name |
-| `number_of_digits` | Count of numeric characters |
-| `tld_popularity` | TLD in common list |
-| `suspicious_file_extension` | Suspicious file extension |
-| `domain_name_length` | Length of domain |
-| `percentage_numeric_chars` | Ratio of numbers to total chars |
-
-### Dataset
-- **Source**: LegitPhish
-- **Size**: 100,000+ URLs
-- **Classes**: Legitimate vs Phishing
-
-### Prediction Output
-- **-1**: Safe (Confidence in legitimacy)
-- **0**: Suspicious (Low phishing probability < 40%)
-- **1**: Phishing (High phishing probability ≥ 40%)
+The mobile app maps various backend responses (like safe, legitimate, benign to SAFE; suspicious to SUSPICIOUS; and phishing, malicious, fraud to PHISHING).
 
 ---
 
-## 🔒 Security
+## Security & Privacy
 
-### Zero-Knowledge Architecture
-
-1. **Client-Side Encryption**
-   - User password → PBKDF2 → Encryption Key
-   - Master User Key generated locally
-   - All vault data encrypted with AES-GCM before transmission
-
-2. **Server-Side Security**
-   - Passwords hashed with Argon2 (never stored in plaintext)
-   - Only encrypted data received and stored
-   - Server cannot decrypt user vault data
-
-3. **Authentication Flow**
-   - JWT-based stateless authentication
-   - Access tokens (15 min expiry)
-   - Refresh tokens (30 day expiry)
-   - Automatic token rotation
-
-4. **Additional Protections**
-   - CORS protection
-   - Rate limiting (Redis-backed)
-   - Input validation (Pydantic)
-   - SQL injection prevention (ORM)
-   - XSS protection
+- Client-Side Encryption: Encrypts vault data using AES-GCM and derives keys using PBKDF2 from password in-browser. The backend only sees encrypted blobs.
+- Secure Hashing: Password storage uses Argon2-cffi.
+- Stateless Sessions: Uses JWT tokens with 15-minute access expiration and automatic refresh tokens.
 
 ---
 
-## 💻 Development
+## Troubleshooting
 
-### Backend Development
+### Redis Connection Error
 
-```bash
-cd backend/app
-uv run uvicorn main:app --reload --port 5000
-```
-
-### Frontend Development
+If Redis connection fails, check if Redis server is active:
 
 ```bash
-cd frontend
-pnpm dev
+redis-cli ping
 ```
 
-This starts all packages in watch mode. Changes to the extension will require a manual reload in `chrome://extensions`.
+Make sure the REDIS_URL in the backend `.env` matches the connection details.
 
-### Building for Production
+### Mail Delivery Failures
+
+If OTP emails are failing to send, ensure using Google App Password and that the Google account has 2-Step Verification active.
+
+### Missing Tables or Database Errors
+
+On database errors (e.g., table not found), run:
 
 ```bash
-# Backend
-cd backend
-uv sync --no-dev
-
-# Frontend
-cd frontend
-pnpm run build
+uv run aerich init-db
 ```
 
-### Database Migrations
+Or, delete `db.sqlite3` in the backend folder and run the migration commands again.
 
-```bash
-cd backend/app
-# Create new migration
-uv run aerich migrate --name describe_change
+### Mobile App Link Interception Issues
 
-# Apply migrations
-uv run aerich upgrade
-```
+If links are not opening in Aegis, ensure that:
 
-### Running Tests
-
-```bash
-# Backend (if tests are implemented)
-cd backend
-uv run pytest
-
-# Frontend (if tests are implemented)
-cd frontend
-pnpm test
-```
+- The development client (`pnpx expo run:android`) has been built and not the Expo Go app.
+- Aegis has been selected as the default browser in Android Settings.
+- The scheme and intent filter setup in `app.json` has been updated in the built APK.
+- AsyncStorage issues can usually be resolved by clearing the application's data.
 
 ---
 
-## 📁 Project Structure
-
-```
-aegis-chrome-extension/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI application entry
-│   │   ├── config.py            # Configuration and settings
-│   │   ├── models.py            # Database models
-│   │   ├── routes.py            # API endpoints
-│   │   ├── schemas.py           # Pydantic schemas
-│   │   ├── security.py          # Auth logic
-│   │   ├── predict.py           # ML prediction engine
-│   │   ├── services.py          # Email service
-│   │   ├── signals.py           # Database signals
-│   │   ├── tasks.py             # Background tasks
-│   │   ├── utils.py             # Utility functions
-│   │   ├── logging_config.py    # Logger setup
-│   │   ├── .env.example         # Environment template
-│   │   ├── phishing_model/
-│   │   │   ├── Base_Ensemble.joblib
-│   │   │   └── Meta_LR.joblib
-│   │   └── dataset/
-│   │       └── LegitPhish.csv
-│   └── pyproject.toml           # Python dependencies
-├── frontend/
-│   ├── packages/
-│   │   ├── authentication/      # Auth UI package
-│   │   ├── chrome-extension/    # Main popup UI
-│   │   ├── settings-ui/         # Settings page
-│   │   └── background-worker/   # Service worker
-│   ├── static/
-│   │   └── manifest.json        # Extension manifest
-│   ├── aegis-dist/              # Built extension (output)
-│   ├── package.json             # Root package config
-│   └── pnpm-workspace.yaml      # Monorepo config
-└── README.md                    # This file
-```
-
----
-
-## 🐛 Troubleshooting
-
-### Backend Issues
-
-**Redis Connection Error**
-```
-Error: Redis connection failed
-```
-- Ensure Redis is running: `redis-cli ping` should return `PONG`
-- Check `REDIS_URL` in `.env`
-- Install Redis: `brew install redis` (Mac) or `apt install redis` (Linux)
-
-**Email Not Sending**
-```
-Error: Failed to send OTP
-```
-- Verify Gmail credentials in `.env`
-- Ensure you're using an App Password, not your regular password
-- Check Gmail account has 2FA enabled
-
-**Database Errors**
-```
-Error: No such table
-```
-- Run migrations: `uv run aerich init-db`
-- Delete `db.sqlite3` and re-run migrations
-
-### Frontend Issues
-
-**Extension Not Loading**
-```
-Error: Manifest file missing or invalid
-```
-- Ensure you built the extension: `pnpm build`
-- Load `frontend/aegis-dist` folder, not `frontend`
-
-**API Connection Failed**
-```
-Error: Network error
-```
-- Verify backend is running on `http://localhost:5000`
-- Check CORS settings in `backend/app/main.py`
-- Ensure extension has host permissions in manifest
-
-**Build Errors**
-```
-Error: Module not found
-```
-- Delete `node_modules`: `rm -rf node_modules`
-- Reinstall: `pnpm install`
-- Clear cache: `pnpm store prune`
-
-
-## 📄 License
+## License & Contributors
 
 This project is currently unlicensed. All rights reserved.
 
----
-
-## 👨‍💻 Author
-
-**Arjun T**
-- GitHub: [@arjunt-dev](https://github.com/arjunt-dev)
-
----
-
-## 🙏 Acknowledgments
-
-- LegitPhish dataset for training data
-- FastAPI community for excellent documentation
-- Chrome Extensions team for Manifest V3
-
----
-
-**⚠️ Disclaimer**: This extension is provided as-is for educational and personal use. While it uses machine learning to detect phishing URLs, no system is 100% accurate. Always exercise caution when browsing unfamiliar websites.
-
----
-
-Made with ❤️ and ☕ by Arjun T
+Created by Arjun T.

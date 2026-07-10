@@ -147,17 +147,10 @@ export default function HomeScreen() {
         <Text style={styles.sectionTitle}>How It Works</Text>
         <GlassCard>
           <Text style={styles.flowText}>
-            {'Click Link → Android opens AEGIS → ML analysis  → Result shown → You decide: Open / Block / Cancel'}
+            {'Click Link → Android opens AEGIS → ML analysis  → Result shown → Open / Block / Cancel'}
           </Text>
         </GlassCard>
       </View>
-
-      {/* <GlassCard style={[styles.warningCard, { borderColor: Colors.accentYellowBorder }]}>
-        <Text style={styles.warningTitle}>⚠ Important Note</Text>
-        <Text style={styles.warningText}>
-          AEGIS requires an active connection to the prediction backend. Ensure the FastAPI service is running and reachable from your device.
-        </Text>
-      </GlassCard> */}
     </ScrollView>
   );
 }

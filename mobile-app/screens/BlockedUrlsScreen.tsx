@@ -181,7 +181,7 @@ function EmptyState() {
       <Text style={styles.emptyIcon}><Shield color={"#ffffff"} width={"24px"} height={"24px"}/></Text>
       <Text style={styles.emptyTitle}>No Blocked URLs</Text>
       <Text style={styles.emptySubtitle}>
-        URLs you block during analysis will appear here. Open a link from any app to get started.
+        Blocked URLs will appear here. Open a link from any app to get started.
       </Text>
     </View>
   );

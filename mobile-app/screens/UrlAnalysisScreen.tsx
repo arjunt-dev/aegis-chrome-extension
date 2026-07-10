@@ -155,7 +155,7 @@ export default function UrlAnalysisScreen() {
   const handleOverrideBlock = () => {
     Alert.alert(
       'Override Block',
-      'This URL is in your blocklist. Are you sure you want to open it?',
+      'This URL is in the blocklist. Are you sure you want to open it?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -233,7 +233,7 @@ export default function UrlAnalysisScreen() {
           <GlassCard style={[styles.infoCard, { borderColor: Colors.accentRedBorder }]}>
             <Text style={styles.infoCardTitle}>Why is this blocked?</Text>
             <Text style={styles.infoCardText}>
-              You previously added this URL to your AEGIS blocklist. Opening it is not recommended.
+              The url is already in the AEGIS blocklist. Opening it is not recommended.
             </Text>
           </GlassCard>
 
