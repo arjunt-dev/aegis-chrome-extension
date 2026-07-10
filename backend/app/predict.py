@@ -68,7 +68,9 @@ def extract_features_from_url(url: str):
 def predict_url(url: str):   
         if len(url) > MAX_URL_LENGTH:
             raise HTTPException(413, "URL too long")
-        try:     
+        try:
+            if BASE_MODEL is None or META_MODEL is None:
+                raise HTTPException(500, "Model not loaded")         
             feat_cols = BASE_MODEL["feature_columns"]
             feat_dict = extract_features_from_url(url)
             X_row = pd.DataFrame([feat_dict])[feat_cols]

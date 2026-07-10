@@ -1,4 +1,5 @@
 from datetime import timedelta
+from typing import Annotated
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 from fastapi import HTTPException,status
@@ -68,31 +69,37 @@ async def verify_otp_for_user(user, code: str) -> bool:
     except Exception:
         return False
     
-def create_access_token(data: dict, expires_delta: timedelta = None):
+def create_access_token(data: dict, expires_delta: timedelta|None = None):
     try:
-        to_encode = data.copy()
-        expire = now_utc() + (expires_delta or timedelta(minutes=JWT_SETTINGS['access_token_expire_minutes']))
-        to_encode.update({"exp": expire, "type": "access"})
-        return jwt.encode(to_encode, SECRET_KEY, algorithm=JWT_SETTINGS['algorithm'])
+        if SECRET_KEY:
+            to_encode = data.copy()
+            expire = now_utc() + (expires_delta or timedelta(minutes=JWT_SETTINGS['access_token_expire_minutes']))
+            to_encode.update({"exp": expire, "type": "access"})
+            return jwt.encode(to_encode, SECRET_KEY, algorithm=JWT_SETTINGS['algorithm'])
+        return None
     except Exception as e:
         return None
     
-def create_refresh_token(data: dict, expires_delta: timedelta = None):
+def create_refresh_token(data: dict, expires_delta: timedelta|None = None):
     try:
-        to_encode = data.copy()
-        expire = now_utc() + (expires_delta or timedelta(days=JWT_SETTINGS['refresh_token_expire_days']))
-        to_encode.update({"exp": expire, "type": "refresh"})
-        return jwt.encode(to_encode, SECRET_KEY, algorithm=JWT_SETTINGS['algorithm']),expire
+        if SECRET_KEY:
+            to_encode = data.copy()
+            expire = now_utc() + (expires_delta or timedelta(days=JWT_SETTINGS['refresh_token_expire_days']))
+            to_encode.update({"exp": expire, "type": "refresh"})
+            return jwt.encode(to_encode, SECRET_KEY, algorithm=JWT_SETTINGS['algorithm'])
+        return None
     except Exception as e:
         return None
     
 async def issue_token(user:User):
     access_token=create_access_token({"sub": str(user.id)})
-    refresh_token,expire=create_refresh_token({"sub": str(user.id)})
-    return access_token,refresh_token
+    refresh_token=create_refresh_token({"sub": str(user.id)})
+    return str(access_token), str(refresh_token)
 
 async def verify_token(token: str, expected_type: str = "access"):
     try:
+        if not SECRET_KEY:
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Server configuration error")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[JWT_SETTINGS['algorithm']])
         if expected_type is not None and payload.get("type") != expected_type:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token type")
@@ -123,7 +130,7 @@ async def refresh_access_token(refresh_token: str):
         )
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security)):
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)]):
     token = credentials.credentials
     payload = await verify_token(token, expected_type="access")
     user_id = payload.get("sub")

@@ -2,6 +2,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import joblib
+from pydantic import SecretStr
 from tortoise import Tortoise
 from dotenv import load_dotenv
 import os
@@ -75,16 +76,16 @@ JWT_SETTINGS = {
 
 
 MAIL_CONFIG = ConnectionConfig(
-    MAIL_USERNAME=os.getenv("MAIL_USERNAME"),
-    MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),
-    MAIL_FROM=os.getenv("MAIL_USERNAME"),
-    MAIL_PORT=int(os.getenv("MAIL_PORT", 587)),
-    MAIL_SERVER=os.getenv("MAIL_SERVER", "smtp.gmail.com"),
-    MAIL_FROM_NAME="Aegis Security Team",
-    MAIL_STARTTLS=True,
-    MAIL_SSL_TLS=False,
-    USE_CREDENTIALS=True,
-    VALIDATE_CERTS=True
+    MAIL_USERNAME = os.getenv("MAIL_USERNAME", ""),
+    MAIL_PASSWORD = SecretStr(os.getenv("MAIL_PASSWORD", "")),
+    MAIL_FROM = os.getenv("MAIL_USERNAME", ""),
+    MAIL_PORT = int(os.getenv("MAIL_PORT", 587)),
+    MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com"),
+    MAIL_FROM_NAME = "Aegis Security Team",
+    MAIL_STARTTLS = True,
+    MAIL_SSL_TLS = False,
+    USE_CREDENTIALS = True,
+    VALIDATE_CERTS = True
 )
 def load_model(model_path):
     try:
@@ -95,6 +96,6 @@ def load_model(model_path):
         logger.error(f"Error loading model: {e}")
         return None
 
-BASE_MODEL= load_model(os.path.join(BASE_DIR, "phishing_model","Base_Ensemble.joblib"))
-META_MODEL= load_model(os.path.join(BASE_DIR, "phishing_model","Meta_LR.joblib"))
+BASE_MODEL = load_model(os.path.join(BASE_DIR, "phishing_model","Base_Ensemble.joblib"))
+META_MODEL = load_model(os.path.join(BASE_DIR, "phishing_model","Meta_LR.joblib"))
 MAX_URL_LENGTH = 2048
