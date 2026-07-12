@@ -1,12 +1,10 @@
 
-import re
 import secrets
 
-from fastapi import HTTPException,status
-from.models import Otp
+from app.models import Otp
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-from .config import TIMEZONE
+from app.config import TIMEZONE
 
 APP_TIMEZONE = ZoneInfo(TIMEZONE)
 
@@ -37,37 +35,9 @@ async def create_otp_for_user(user):
     await Otp.create(user=user, code=otp_code, expires_at=expires_at, is_used=False)
     return otp_code
 
-def validate_password_strength(password: str):
-    if len(password) < 8:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="Password must be at least 8 characters long.")
-    
-    errors = []
-    
-    if re.search(r"\s", password):
-        errors.append("no spaces")
-    if not re.search(r"[A-Z]", password):
-        errors.append("one uppercase letter")
-    if not re.search(r"[a-z]", password):
-        errors.append("one lowercase letter")
-    if not re.search(r"[0-9]", password):
-        errors.append("one digit")
-    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
-        errors.append("one special character")
-    
-    if errors:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Password must contain: {', '.join(errors)}."
-        )
-    
-    weak_passwords = {
-        "admin@123","pass@123","password@123"
-    }
-    if password.lower() in weak_passwords:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="Password is too common or easily guessable.")
 
 def safe_mail(email: str) -> str:
-    safe_email = email.split("@")[0][:3] + "***@" + email.split("@")[1]
-    return safe_email
+    """Mask an email address for safe logging (e.g. jon***@example.com)."""
+    local, domain = email.split("@", 1)
+    return local[:3] + "***@" + domain
+

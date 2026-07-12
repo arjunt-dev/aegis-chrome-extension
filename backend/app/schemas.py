@@ -3,14 +3,21 @@ from pydantic import BaseModel, EmailStr, Field, AnyHttpUrl
 class EncryptedPayload(BaseModel):
     iv: str
     ciphertext: str
-    v:int
+    v: int
+
+
+class PreLoginRequest(BaseModel):
+    email: EmailStr
+
+
+class PreLoginResponse(BaseModel):
+    salt: str
 
 
 class SignupRequest(BaseModel):
     email: EmailStr
-    password: str
-    confirm_password: str
-    salt: str
+    auth_hash: str = Field(..., min_length=32)
+    salt: str = Field(..., description="Hex-encoded PBKDF2 salt generated client-side")
     enc_master_user_key: EncryptedPayload
 
 
@@ -20,7 +27,8 @@ class SignupResponse(BaseModel):
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
+    # ZK: client sends the Argon2id/PBKDF2 hash, never the raw password.
+    auth_hash: str = Field(..., min_length=32)
 
 
 class LoginResponse(BaseModel):
@@ -40,7 +48,6 @@ class OtpVerifyResponse(BaseModel):
     message: str
 
 
-
 class VaultResponse(BaseModel):
     blob: EncryptedPayload | None
 
@@ -56,4 +63,3 @@ class PredictionRequest(BaseModel):
 class PredictionResponse(BaseModel):
     prediction: int
     confidence: float | None = None
-

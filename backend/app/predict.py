@@ -3,10 +3,10 @@ import re
 from urllib.parse import urlparse
 from fastapi import HTTPException
 import pandas as pd
-from .config import BASE_MODEL, META_MODEL, MAX_URL_LENGTH
+from app.config import BASE_MODEL, META_MODEL, MAX_URL_LENGTH
 from urllib.parse import urlparse, parse_qs
 import tldextract
-from .logging_config import logger
+from app.logging_config import logger
     
 def extract_features_from_url(url: str):
     parsed = urlparse(url)
