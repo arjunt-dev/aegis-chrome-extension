@@ -12,9 +12,9 @@ Aegis is a zero-knowledge, AI-powered system designed to detect and block phishi
 
 Aegis uses a three-tier architecture:
 
-- Chrome Extension / Frontend: Written in React 18, Vite, and Tailwind. It performs client-side encryption using the Web Crypto API (AES-GCM, PBKDF2) so that user vaults remain secure and private.
-- Mobile Application: Written in React Native and Expo. It handles OS-level intent filters to intercept HTTP/HTTPS links, checks a local blocklist, and prompts users before opening URLs.
-- Backend: An async FastAPI server that hosts the ML threat detection engine, manages JWT-based user authentication, and provides encrypted vault storage. It uses SQLite for persistence and Redis for rate-limiting.
+- **Chrome Extension / Frontend**: Written in React 18, Vite, and Tailwind. It implements a true **Zero-Knowledge (ZK) Architecture**. It derives a master user key and an `auth_hash` client-side (using Argon2id via `hash-wasm`, falling back to 600k-iteration PBKDF2 if WebAssembly is blocked). The raw password is never transmitted to the server. Vault data is encrypted client-side using AES-GCM (Web Crypto API) before synchronization. The ephemeral access token is kept strictly in memory, restored dynamically on service worker wake-up via silent token refresh.
+- **Mobile Application**: Written in React Native and Expo. It handles OS-level intent filters to intercept HTTP/HTTPS links, checks a local blocklist, and prompts users before opening URLs.
+- **Backend**: An async FastAPI server that hosts the ML threat detection engine, manages stateless authentication, and provides encrypted vault storage. It acts as an opaque repository: it does not handle, hash, validate, or store plaintext passwords, and only performs constant-time validation on the client-supplied `auth_hash`. It uses SQLite for persistence and Redis for rate-limiting.
 
 ---
 
@@ -97,6 +97,7 @@ Initialize the database and run migrations:
 cd app
 uv run aerich init -t config.TORTOISE_ORM
 uv run aerich init-db
+uv run aerich upgrade
 ```
 
 Start the development server:
@@ -256,9 +257,13 @@ The mobile app maps various backend responses (like safe, legitimate, benign to 
 
 ## Security & Privacy
 
-- Client-Side Encryption: Encrypts vault data using AES-GCM and derives keys using PBKDF2 from password in-browser. The backend only sees encrypted blobs.
-- Secure Hashing: Password storage uses Argon2-cffi.
-- Stateless Sessions: Uses JWT tokens with 15-minute access expiration and automatic refresh tokens.
+- **True Zero-Knowledge (ZK) Design**: The backend never receives, validates, hashes, or stores raw user passwords. All key derivation and authentication hashing are performed locally on the client.
+- **Client-Side Hashing & Key Derivation**: 
+  - **Auth Hash**: Derived client-side using `Argon2id` (via `hash-wasm` using 64 MiB memory, 3 iterations, and 1 parallelism). If WebAssembly is blocked in the host environment, it falls back to native WebCrypto `PBKDF2-HMAC-SHA256` with 600,000 iterations.
+  - **Vault Key**: Derived client-side using native WebCrypto `PBKDF2-HMAC-SHA256` with 200,000 iterations to wrap/unwrap the AES-256 master key.
+- **Client-Side Encryption**: Vault data is encrypted using AES-GCM (Web Crypto API) locally before synchronizing to the backend. The database only contains opaque ciphertext.
+- **Constant-Time Verification**: The backend compares client-derived hashes using `secrets.compare_digest` to prevent timing-based user enumeration or cracking attacks.
+- **Ephemeral Token Storage**: The short-lived access token is stored strictly in-memory (never persisted). Only the refresh token and wrapped master key JWK are stored in Chrome Extension session storage, with access tokens re-established via silent refresh when the worker restarts.
 
 ---
 
