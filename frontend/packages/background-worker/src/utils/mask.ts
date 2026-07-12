@@ -1,3 +1,4 @@
+import { argon2id } from "hash-wasm";
 const CRYPTO = globalThis.crypto || (self as any).crypto;
 
 export interface EncryptedPayload {
@@ -46,6 +47,57 @@ export function generateSalt(length = 16): Uint8Array {
 
 export function generateMasterKeyBytes(length = 32): Uint8Array {
   return CRYPTO.getRandomValues(new Uint8Array(length));
+}
+
+/* ===========================
+   AUTH HASH DERIVATION
+   Client-side only — never expose raw password to server.
+
+   Primary:  argon2id via hash-wasm (WASM inlined as base64 in the
+             bundle — no fetch needed, works in MV3 service workers).
+             Params: 64 MiB memory, 3 iterations, parallelism=1.
+
+   Fallback: PBKDF2-HMAC-SHA256 (600,000 iterations) via native
+             WebCrypto, used if WASM instantiation fails.
+=========================== */
+async function deriveAuthHashPBKDF2(password: string, salt: Uint8Array): Promise<string> {
+  const enc = new TextEncoder();
+  const keyMaterial = await CRYPTO.subtle.importKey(
+    "raw",
+    enc.encode(password),
+    { name: "PBKDF2" },
+    false,
+    ["deriveBits"]
+  );
+  const bits = await CRYPTO.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations: 600_000, hash: "SHA-256" },
+    keyMaterial,
+    256
+  );
+  return bufferToHex(new Uint8Array(bits));
+}
+
+export async function deriveAuthHash(
+  password: string,
+  salt: Uint8Array
+): Promise<string> {
+  try {
+    // hash-wasm inlines the WASM binary as base64 — no fetch() call at runtime.
+    // Requires 'wasm-unsafe-eval' in the extension CSP (added to manifest.json).
+    return await argon2id({
+      password,
+      salt,
+      parallelism: 1,
+      iterations: 3,
+      memorySize: 65536, // 64 MiB
+      hashLength: 32,
+      outputType: "hex",
+    });
+  } catch {
+    // Fallback: WASM blocked or unavailable in this runtime context
+    console.warn("[Crypto] argon2id (hash-wasm) unavailable, using PBKDF2-SHA256 fallback");
+    return deriveAuthHashPBKDF2(password, salt);
+  }
 }
 
 /* ===========================

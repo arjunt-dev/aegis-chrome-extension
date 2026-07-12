@@ -10,6 +10,7 @@ import {
   importMasterKey,
   exportMasterKey,
   importMasterKeyFromJWK,
+  deriveAuthHash,
 } from "./utils/mask";
 import {
   AppSettings,
@@ -17,6 +18,7 @@ import {
   SignupData,
   VaultItem,
   EncryptedPayload,
+  PreLoginResponse,
 } from "./utils/types";
 
 /* ============================================
@@ -128,6 +130,8 @@ async function getEncryptedVault(): Promise<EncryptedPayload | null> {
 async function setAccessToken(token: string) {
   ACCESS_TOKEN = token;
   axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  // Persist so the token survives MV3 service worker idle/wake cycles
+  await chrome.storage.session.set({ accessToken: token });
 }
 
 async function setRefreshToken(token: string) {
@@ -142,11 +146,26 @@ async function getRefreshToken(): Promise<string | null> {
   return REFRESH_TOKEN;
 }
 
+// Restore both tokens from session storage after an MV3 service worker wake-up.
+// Must be called at the start of every message handler.
+async function restoreSession(): Promise<void> {
+  if (!ACCESS_TOKEN) {
+    const result = await chrome.storage.session.get(["accessToken", "refreshToken"]);
+    if (result.accessToken) {
+      ACCESS_TOKEN = result.accessToken;
+      axios.defaults.headers.common["Authorization"] = `Bearer ${result.accessToken}`;
+    }
+    if (result.refreshToken) {
+      REFRESH_TOKEN = result.refreshToken;
+    }
+  }
+}
+
 async function clearSession() {
   ACCESS_TOKEN = null;
   REFRESH_TOKEN = null;
   delete axios.defaults.headers.common["Authorization"];
-  chrome.storage.session.clear();
+  await chrome.storage.session.clear();
   MASTER_USER_KEY = null;
 }
 
@@ -247,20 +266,24 @@ async function syncVaultToServer() {
 
     // Get existing remote vault data
     let remoteVault: VaultItem[] = [];
-    try {
-      const cached = await getEncryptedVault();
-      if (cached) {
-        const decrypted = await decryptString(cached, MASTER_USER_KEY);
-        remoteVault = JSON.parse(decrypted);
-      } else {
-        const remote = await getVault();
-        if (remote) {
-          const decrypted = await decryptString(remote, MASTER_USER_KEY);
-          remoteVault = JSON.parse(decrypted);
-        }
+    const cached = await getEncryptedVault();
+    if (cached) {
+      if (!MASTER_USER_KEY) {
+        console.log("[VaultSync] Master key cleared during cached vault retrieval");
+        return;
       }
-    } catch (err) {
-      console.log("[VaultSync] No existing vault data, creating new");
+      const decrypted = await decryptString(cached, MASTER_USER_KEY);
+      remoteVault = JSON.parse(decrypted);
+    } else {
+      const remote = await getVault();
+      if (!MASTER_USER_KEY) {
+        console.log("[VaultSync] Master key cleared during remote vault retrieval");
+        return;
+      }
+      if (remote) {
+        const decrypted = await decryptString(remote, MASTER_USER_KEY);
+        remoteVault = JSON.parse(decrypted);
+      }
     }
 
     // Merge local and remote
@@ -806,10 +829,23 @@ async function signup(data: SignupData) {
   }
 }
 
-// Fix login function - Handle axios errors properly
-async function login(email: string, password: string) {
+// Fetch user's salt before login so we can derive the auth hash client-side
+async function preLogin(email: string): Promise<PreLoginResponse> {
   try {
-    const response = await axios.post("/login", { email, password });
+    const response = await axios.post("/pre-login", { email });
+    return response.data as PreLoginResponse;
+  } catch (error: any) {
+    if (error.response?.data?.detail) {
+      throw new Error(error.response.data.detail);
+    }
+    throw new Error(error.message || "Pre-login failed");
+  }
+}
+
+// Fix login function - sends auth_hash (never raw password)
+async function login(email: string, auth_hash: string) {
+  try {
+    const response = await axios.post("/login", { email, auth_hash });
     return response.data as LoginResponse;
   } catch (error: any) {
     // Extract error message from axios error response
@@ -930,10 +966,12 @@ async function updateVaultWithPrediction(hostname: string, prediction: number, c
     let vaultItems: VaultItem[] = [];
     const cached = await getEncryptedVault();
     if (cached) {
+      if (!MASTER_USER_KEY) return;
       const decrypted = await decryptString(cached, MASTER_USER_KEY);
       vaultItems = JSON.parse(decrypted);
     } else {
       const remote = await getVault();
+      if (!MASTER_USER_KEY) return;
       if (remote) {
         const decrypted = await decryptString(remote, MASTER_USER_KEY);
         vaultItems = JSON.parse(decrypted);
@@ -1026,6 +1064,9 @@ async function clearHistory() {
 
 chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
   (async () => {
+    // Rehydrate tokens from session storage on every message — the MV3
+    // service worker can be killed between messages and global state lost.
+    await restoreSession();
     console.log("Received message:", message.type, message.payload);
     try {
       switch (message.type) {
@@ -1178,20 +1219,24 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
         }
 
         case "SIGNUP": {
+          // 1. Generate vault-encryption salt and derive the wrapping key
           const salt = generateSalt();
           const enc_key = await deriveKeyFromPassword(
             message.payload.password,
             salt,
           );
+          // 2. Generate a random master key and encrypt it with the wrapping key
           const key = generateMasterKeyBytes();
           const enc_master_user_key = await encryptString(
             bufferToHex(key),
             enc_key,
           );
+          // 3. Derive auth hash client-side (argon2id or PBKDF2 fallback) using the same salt
+          const auth_hash = await deriveAuthHash(message.payload.password, salt);
+
           const finalpayload: SignupData = {
             email: message.payload.email,
-            password: message.payload.password,
-            confirm_password: message.payload.confirm_password,
+            auth_hash,                // ZK: only the hash reaches the server
             salt: bufferToHex(salt),
             enc_master_user_key,
           };
@@ -1207,16 +1252,32 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
         }
 
         case "LOGIN": {
+          // 1. Fetch user's salt from server (public, no auth required)
+          let saltHex: string;
+          try {
+            const preLoginData = await preLogin(message.payload.email);
+            saltHex = preLoginData.salt;
+          } catch (err: any) {
+            sendResponse({ success: false, error: err.message || "Failed to reach server" });
+            break;
+          }
+
+          // 2. Derive auth hash client-side using the same algorithm as signup
+          const loginSalt = hexToBuffer(saltHex);
+          const auth_hash = await deriveAuthHash(message.payload.password, loginSalt);
+
+          // 3. Authenticate with the server (sends auth_hash, never raw password)
           const logindata: LoginResponse | string = await login(
             message.payload.email,
-            message.payload.password,
+            auth_hash,
           );
           if (typeof logindata !== "string") {
             await setAccessToken(logindata.access_token);
             await setRefreshToken(logindata.refresh_token);
+            // 4. Derive vault encryption key client-side from the original password
             const derivedKey = await deriveKeyFromPassword(
               message.payload.password,
-              hexToBuffer(logindata.salt),
+              loginSalt,
             );
             const masterKeyHex = await decryptString(
               logindata.enc_master_user,
@@ -1321,23 +1382,22 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 ============================================ */
 chrome.runtime.onStartup.addListener(async () => {
   try {
-    const storedRefreshToken = await getRefreshToken();
-    if (storedRefreshToken) {
-      console.log("[Startup] Refresh token found in session storage");
-      
+    // Restore access + refresh tokens and axios header from session storage
+    await restoreSession();
+
+    if (ACCESS_TOKEN) {
+      console.log("[Startup] Session restored — access token available");
+
       // Try to restore master key from session storage
       MASTER_USER_KEY = await restoreMasterKey();
       if (MASTER_USER_KEY) {
         console.log("[Startup] ✓ Master key restored - sync enabled");
-        
-        // Try to restore access token if available
-        if (ACCESS_TOKEN) {
-          console.log("[Startup] Access token available - syncing vault");
-          await syncVaultFromServer();
-        }
+        await syncVaultFromServer();
       } else {
         console.log("[Startup] Master key not available - user needs to login");
       }
+    } else {
+      console.log("[Startup] No active session found");
     }
 
     // Restore blocking rules (will use encrypted storage if available)

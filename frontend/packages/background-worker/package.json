@@ -7,12 +7,11 @@
     "dev": "esbuild src/background.ts --bundle --outfile=../../aegis-dist/background.js --watch"
   },
   "devDependencies": {
-    "@types/argon2-browser": "^1.18.4",
     "@types/chrome": "^0.1.27",
     "@types/node": "^24.10.0"
   },
   "dependencies": {
-    "argon2-browser": "^1.18.0",
-    "axios": "^1.13.2"
+    "axios": "^1.13.2",
+    "hash-wasm": "^4.12.0"
   }
 }

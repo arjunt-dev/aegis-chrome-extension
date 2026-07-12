@@ -36,10 +36,14 @@ export interface EncryptedPayload {
 }
 export interface SignupData {
   email: string;
-  password: string;
-  confirm_password: string;
+  /** Client-side derived hash (argon2id or PBKDF2). Never the raw password. */
+  auth_hash: string;
   salt: string;
   enc_master_user_key: EncryptedPayload;
+}
+
+export interface PreLoginResponse {
+  salt: string;
 }
 
 export interface BlockItem {

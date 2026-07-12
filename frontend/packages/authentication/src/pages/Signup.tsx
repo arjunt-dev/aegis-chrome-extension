@@ -42,12 +42,23 @@ export default function Signup() {
 const handleSignup = async () => {
   if (!email || !password || !confirm_password)
     return setAlert({ type: "warning", msg: "All fields are required." });
-  
+
   if (!isValidEmail(email))
     return setAlert({ type: "warning", msg: "Please enter a valid email address." });
-  
+
+  // Enforce all password requirements client-side (backend no longer validates these)
+  const failedReqs = passwordValidation.filter((r) => !r.met);
+  if (failedReqs.length > 0) {
+    setShowRequirements(true);
+    return setAlert({
+      type: "warning",
+      msg: `Password must meet: ${failedReqs.map((r) => r.label.toLowerCase()).join(", ")}.`,
+    });
+  }
+
   if (password !== confirm_password)
     return setAlert({ type: "warning", msg: "Passwords do not match." });
+
   const response = await authApi.signup({ email, password, confirm_password });
   console.log(response);
   
