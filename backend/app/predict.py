@@ -7,6 +7,12 @@ from app.config import BASE_MODEL, META_MODEL, MAX_URL_LENGTH
 from urllib.parse import urlparse, parse_qs
 import tldextract
 from app.logging_config import logger
+
+def shannon_entropy(s):
+    if not s:
+        return 0.0
+    probs = [float(s.count(c)) / len(s) for c in set(s)]
+    return -sum(p * math.log2(p) for p in probs)
     
 def extract_features_from_url(url: str):
     parsed = urlparse(url)
@@ -14,21 +20,15 @@ def extract_features_from_url(url: str):
     domain = ext.domain or ""
     suffix = ext.suffix or ""
     subdomain = ext.subdomain or ""
+    subdomain = '.'.join(p for p in subdomain.split('.') if p and p != 'www')
     full_domain = ".".join(x for x in [subdomain, domain, suffix] if x)
 
     path = parsed.path or ""
     query = parsed.query or ""
     url_length = len(url)
-    ip_pattern = r"(\d{1,3}\.){3}\d{1,3}"
-    has_ip_address = 1 if re.search(ip_pattern, full_domain) else 0
+    has_ip_address = 1 if re.search(r"(\d{1,3}\.){3}\d{1,3}", full_domain) else 0
     dot_count = url.count(".")
     https_flag = 1 if parsed.scheme == "https" else 0
-
-    def shannon_entropy(s):
-        if not s:
-            return 0.0
-        probs = [float(s.count(c)) / len(s) for c in set(s)]
-        return -sum(p * math.log2(p) for p in probs)
 
     url_entropy = shannon_entropy(url)
     token_count = len(re.split(r'\W+', url))
@@ -41,11 +41,11 @@ def extract_features_from_url(url: str):
     popular_tlds = {"com","org","net","in","co","edu","gov"}
     tld_popularity = 1 if suffix in popular_tlds else 0
     suspicious_exts = {".exe",".zip",".rar",".apk",".dll",".bat",".cmd",".scr"}
-    suspicious_file_extension = 1 if any(url.lower().endswith(ext) for ext in suspicious_exts) else 0
+    suspicious_file_extension = 1 if any(url.lower().endswith(e) for e in suspicious_exts) else 0
     domain_name_length = len(domain)
-    percentage_numeric_chars = sum(c.isdigit() for c in url) / len(url) if len(url)>0 else 0.0
+    percentage_numeric_chars = sum(c.isdigit() for c in url) / len(url) if len(url) > 0 else 0.0
 
-    feat = {
+    return {
         'url_length': url_length,
         'has_ip_address': has_ip_address,
         'dot_count': dot_count,
@@ -63,7 +63,6 @@ def extract_features_from_url(url: str):
         'domain_name_length': domain_name_length,
         'percentage_numeric_chars': percentage_numeric_chars
     }
-    return feat
 
 def predict_url(url: str):   
         if len(url) > MAX_URL_LENGTH:

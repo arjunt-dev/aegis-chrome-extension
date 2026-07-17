@@ -21,13 +21,11 @@ import {
   PreLoginResponse,
 } from "./utils/types";
 
-/* ============================================
-   CONFIG
-============================================ */
+
 const API_BASE_URL = "http://localhost:5000/api";
 axios.defaults.baseURL = API_BASE_URL;
 axios.defaults.headers.common["Content-Type"] = "application/json";
-axios.defaults.timeout = 30000; // 30 seconds for slow operations like email sending
+axios.defaults.timeout = 30000; 
 axios.defaults.withCredentials = true;
 let ACCESS_TOKEN: string | null = null;
 let REFRESH_TOKEN: string | null = null;
@@ -44,13 +42,10 @@ function addRefreshSubscriber(callback: (token: string) => void) {
   refreshSubscribers.push(callback);
 }
 
-// Response interceptor for handling 401 errors
 axios.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-
-    // Don't retry for login, signup, or refresh endpoints
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
@@ -85,19 +80,15 @@ axios.interceptors.response.use(
           await setAccessToken(newToken);
           await setRefreshToken(response.data.refresh_token);
           
-          // Retry all queued requests with new token
           onRefreshed(newToken);
           
-          // Retry the original request
           originalRequest.headers["Authorization"] = `Bearer ${newToken}`;
           return axios(originalRequest);
         }
       } catch (refreshError) {
-        // Refresh failed, clear session and redirect to login
         console.error("[Auth] Token refresh failed:", refreshError);
         await clearSession();
         
-        // Notify all queued requests that refresh failed
         refreshSubscribers = [];
         
         return Promise.reject(refreshError);
@@ -130,7 +121,6 @@ async function getEncryptedVault(): Promise<EncryptedPayload | null> {
 async function setAccessToken(token: string) {
   ACCESS_TOKEN = token;
   axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-  // Persist so the token survives MV3 service worker idle/wake cycles
   await chrome.storage.session.set({ accessToken: token });
 }
 
@@ -146,8 +136,7 @@ async function getRefreshToken(): Promise<string | null> {
   return REFRESH_TOKEN;
 }
 
-// Restore both tokens from session storage after an MV3 service worker wake-up.
-// Must be called at the start of every message handler.
+
 async function restoreSession(): Promise<void> {
   if (!ACCESS_TOKEN) {
     const result = await chrome.storage.session.get(["accessToken", "refreshToken"]);
@@ -169,7 +158,7 @@ async function clearSession() {
   MASTER_USER_KEY = null;
 }
 
-// Store MASTER_USER_KEY securely in session storage
+
 async function storeMasterKey(key: CryptoKey) {
   try {
     const jwk = await exportMasterKey(key);
@@ -180,7 +169,6 @@ async function storeMasterKey(key: CryptoKey) {
   }
 }
 
-// Restore MASTER_USER_KEY from session storage
 async function restoreMasterKey(): Promise<CryptoKey | null> {
   try {
     const result = await chrome.storage.session.get("masterKeyJWK");
@@ -196,11 +184,10 @@ async function restoreMasterKey(): Promise<CryptoKey | null> {
   }
 }
 
-// Ensure MASTER_USER_KEY is available for sync operations
+
 async function ensureMasterKey(): Promise<boolean> {
   if (MASTER_USER_KEY) return true;
   
-  // Try to restore from session storage
   MASTER_USER_KEY = await restoreMasterKey();
   if (MASTER_USER_KEY) {
     console.log("[Session] Master key restored for sync operation");
@@ -211,26 +198,21 @@ async function ensureMasterKey(): Promise<boolean> {
   return false;
 }
 
-// Merge local and remote vault items intelligently
 function mergeVaultItems(local: VaultItem[], remote: VaultItem[]): VaultItem[] {
   const merged = new Map<string, VaultItem>();
   
-  // Add all remote items first
   remote.forEach(item => {
     merged.set(item.hostname, item);
   });
   
-  // Merge local items, keeping most recent data
   local.forEach(localItem => {
     const existing = merged.get(localItem.hostname);
     if (!existing) {
       merged.set(localItem.hostname, localItem);
     } else {
-      // Keep the item with most recent lastChecked
       if (new Date(localItem.lastChecked) > new Date(existing.lastChecked)) {
         merged.set(localItem.hostname, localItem);
       } else if (new Date(localItem.lastChecked).getTime() === new Date(existing.lastChecked).getTime()) {
-        // If same timestamp, prefer blocked items
         if (localItem.isBlocked && !existing.isBlocked) {
           merged.set(localItem.hostname, localItem);
         }
@@ -241,10 +223,8 @@ function mergeVaultItems(local: VaultItem[], remote: VaultItem[]): VaultItem[] {
   return Array.from(merged.values());
 }
 
-// Sync local vault to server (renamed from syncBlocklistToVault)
 async function syncVaultToServer() {
   try {
-    // Ensure master key is available
     if (!ACCESS_TOKEN) {
       console.log("[VaultSync] Not authenticated, skipping sync");
       return;
@@ -264,7 +244,6 @@ async function syncVaultToServer() {
     const localVault = await getVaultLocal();
     console.log("[VaultSync] Syncing", localVault.length, "items to server");
 
-    // Get existing remote vault data
     let remoteVault: VaultItem[] = [];
     const cached = await getEncryptedVault();
     if (cached) {
@@ -286,16 +265,13 @@ async function syncVaultToServer() {
       }
     }
 
-    // Merge local and remote
     const merged = mergeVaultItems(localVault, remoteVault);
     console.log("[VaultSync] Merged vault contains", merged.length, "items");
 
-    // Encrypt and upload
     const encrypted = await encryptString(JSON.stringify(merged), MASTER_USER_KEY);
     await updateVault(encrypted);
     await storeEncryptedVault(encrypted);
     
-    // Update local storage with merged data
     await saveVaultLocal(merged);
     await updateBlockingRules();
     
@@ -305,10 +281,8 @@ async function syncVaultToServer() {
   }
 }
 
-// Fetch and merge vault data from server to local storage
 async function syncVaultFromServer() {
   try {
-    // Ensure master key is available
     if (!ACCESS_TOKEN) {
       console.log("[VaultSync] Not authenticated, skipping fetch");
       return;
@@ -333,19 +307,14 @@ async function syncVaultFromServer() {
       return;
     }
 
-    // Decrypt remote vault
     const decrypted = await decryptString(remoteEncrypted, MASTER_USER_KEY);
     const remoteVault: VaultItem[] = JSON.parse(decrypted);
     console.log("[VaultSync] Retrieved", remoteVault.length, "items from server");
-
-    // Get local vault
     const localVault = await getVaultLocal();
     
-    // Merge remote and local
     const merged = mergeVaultItems(localVault, remoteVault);
     console.log("[VaultSync] Merged contains", merged.length, "items");
 
-    // For authenticated users, store encrypted
     await saveVaultLocal(merged);
     await updateBlockingRules();
     await storeEncryptedVault(remoteEncrypted);
@@ -381,18 +350,15 @@ const getBaseUrl = (urlString: string): string => {
   }
 };
 
-// NEW: Extract just the hostname
 const getHostname = (urlString: string): string => {
   try {
     const urlObj = new URL(urlString);
     return urlObj.hostname.replace(/^www\./, '');
   } catch {
-    // Already a hostname, just remove www if present
     return urlString.replace(/^www\./, '');
   }
 };
 
-// Check if URL is localhost or local development
 const isLocalhost = (urlString: string): boolean => {
   try {
     const urlObj = new URL(urlString);
@@ -412,22 +378,17 @@ const isLocalhost = (urlString: string): boolean => {
   }
 };
 
-//Unified Vault Management (replaces separate blocklist/history)
 async function getVaultLocal(): Promise<VaultItem[]> {
   try {
-    // If authenticated with sync enabled, read from encrypted storage
     if (ACCESS_TOKEN) {
       const settings = await getSettings();
       if (settings.syncBlocklist) {
-        // Ensure master key is available
         if (await ensureMasterKey()) {
-          // Check if we need to migrate old format data
           await migrateOldStorageFormat();
           return await getVaultLocalEncrypted(MASTER_USER_KEY!);
         }
       }
     }
-    // Otherwise, use plain storage (for non-authenticated users)
     const result = await chrome.storage.local.get("vault_local");
     return result.vault_local || [];
   } catch (err) {
@@ -438,7 +399,6 @@ async function getVaultLocal(): Promise<VaultItem[]> {
 
 async function saveVaultLocal(items: VaultItem[]) {
   try {
-    // If authenticated with sync enabled, store encrypted
     if (ACCESS_TOKEN) {
       const settings = await getSettings();
       if (settings.syncBlocklist) {
@@ -454,7 +414,6 @@ async function saveVaultLocal(items: VaultItem[]) {
   }
 }
 
-// Migrate old storage format to new unified format
 async function migrateOldStorageFormat() {
   try {
     const [plainBlocklist, plainHistory, encBlocklist, encHistory] = await Promise.all([
@@ -466,7 +425,6 @@ async function migrateOldStorageFormat() {
 
     const itemsToMigrate = new Map<string, VaultItem>();
 
-    // Migrate plain text blocklist
     if (plainBlocklist.blocklist?.length > 0) {
       console.log("[Migration] Found", plainBlocklist.blocklist.length, "plain blocklist items");
       plainBlocklist.blocklist.forEach((item: any) => {
@@ -474,14 +432,12 @@ async function migrateOldStorageFormat() {
       });
     }
 
-    // Migrate plain text history
     if (plainHistory.history?.length > 0) {
       console.log("[Migration] Found", plainHistory.history.length, "plain history items");
       plainHistory.history.forEach((item: any) => {
         const existing = itemsToMigrate.get(item.hostname);
         const converted = convertOldToNewFormat(item);
         if (existing) {
-          // Merge with existing
           if (converted.lastChecked > existing.lastChecked) {
             existing.lastChecked = converted.lastChecked;
             existing.prediction = converted.prediction;
@@ -493,7 +449,6 @@ async function migrateOldStorageFormat() {
       });
     }
 
-    // Migrate encrypted blocklist
     if (encBlocklist.blocklist_enc && await ensureMasterKey()) {
       try {
         const decrypted = await decryptString(encBlocklist.blocklist_enc, MASTER_USER_KEY!);
@@ -507,7 +462,6 @@ async function migrateOldStorageFormat() {
       }
     }
 
-    // Migrate encrypted history
     if (encHistory.history_enc && await ensureMasterKey()) {
       try {
         const decrypted = await decryptString(encHistory.history_enc, MASTER_USER_KEY!);
@@ -536,7 +490,6 @@ async function migrateOldStorageFormat() {
       if (await ensureMasterKey()) {
         await saveVaultLocalEncrypted(Array.from(itemsToMigrate.values()), MASTER_USER_KEY!);
         
-        // Clean up old storage keys
         await chrome.storage.local.remove(["blocklist", "history", "blocklist_enc", "history_enc"]);
         console.log("[Migration] ✓ Migration complete, old storage cleaned up");
       }
@@ -546,7 +499,6 @@ async function migrateOldStorageFormat() {
   }
 }
 
-// Convert old VaultItem format to new format
 function convertOldToNewFormat(oldItem: any): VaultItem {
   const lastChecked = oldItem.history?.datetime || oldItem.block?.datetime || oldItem.createdAt || new Date().toISOString();
   return {
@@ -560,13 +512,10 @@ function convertOldToNewFormat(oldItem: any): VaultItem {
   };
 }
 
-// Backward compatibility wrappers
 async function getBlocklist(): Promise<VaultItem[]> {
   const vault = await getVaultLocal();
   return vault.filter(item => item.isBlocked);
 }
-
-// Encrypted storage helpers for authenticated users
 async function getVaultLocalEncrypted(key: CryptoKey): Promise<VaultItem[]> {
   const result = await chrome.storage.local.get("vault_local_enc");
   if (!result.vault_local_enc) return [];
@@ -577,7 +526,6 @@ async function getVaultLocalEncrypted(key: CryptoKey): Promise<VaultItem[]> {
 async function saveVaultLocalEncrypted(items: VaultItem[], key: CryptoKey) {
   const encrypted = await encryptString(JSON.stringify(items), key);
   await chrome.storage.local.set({ vault_local_enc: encrypted });
-  // Clear old storage formats for security
   await chrome.storage.local.remove(["vault_local", "blocklist", "history", "blocklist_enc", "history_enc"]);
 }
 
@@ -591,12 +539,10 @@ async function addToBlocklist(hostname: string, predictionData?: { prediction: n
   const normalizedHostname = getHostname(hostname);
   const vault = await getVaultLocal();
   
-  // Check if already exists
   const existingIndex = vault.findIndex((i) => i.hostname === normalizedHostname);
   const now = new Date().toISOString();
   
   if (existingIndex >= 0) {
-    // Update existing item
     vault[existingIndex].isBlocked = true;
     vault[existingIndex].lastChecked = now;
     if (predictionData) {
@@ -605,7 +551,6 @@ async function addToBlocklist(hostname: string, predictionData?: { prediction: n
     }
     console.log("[Blocklist] Updated:", normalizedHostname);
   } else {
-    // Add new item
     vault.push({
       id: crypto.randomUUID(),
       hostname: normalizedHostname,
@@ -621,7 +566,6 @@ async function addToBlocklist(hostname: string, predictionData?: { prediction: n
   await saveVaultLocal(vault);
   await updateBlockingRules();
   
-  // Sync to vault if enabled
   const settings = await getSettings();
   if (settings.syncBlocklist && ACCESS_TOKEN) {
     if (await ensureMasterKey()) {
@@ -634,7 +578,6 @@ async function removeFromBlocklist(hostname: string) {
   const normalizedHostname = getHostname(hostname);
   const vault = await getVaultLocal();
   
-  // Find and update the item instead of removing (to preserve history)
   const item = vault.find(i => i.hostname === normalizedHostname);
   if (item) {
     item.isBlocked = false;
@@ -645,7 +588,6 @@ async function removeFromBlocklist(hostname: string) {
   await saveVaultLocal(vault);
   await updateBlockingRules();
   
-  // Sync deletion across devices
   const settings = await getSettings();
   if (settings.syncBlocklist && ACCESS_TOKEN) {
     if (await ensureMasterKey()) {
@@ -654,9 +596,7 @@ async function removeFromBlocklist(hostname: string) {
     }
   }
 }
-/* ============================================
-   CHROME BLOCKING RULES
-============================================ */
+
 async function updateBlockingRules() {
   try {
     const blocklist:VaultItem[] = await getBlocklist();
@@ -694,9 +634,6 @@ async function updateBlockingRules() {
 }
 
 
-/* ============================================
-   AUTO PREDICTION
-============================================ */
 const lastCheckedByTab = new Map<number, string>();
 
 chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
@@ -709,19 +646,17 @@ chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
     return;
   }
 
-  const hostname = getHostname(tab.url); // Use hostname for per-tab deduplication
+  const hostname = getHostname(tab.url); 
   if (lastCheckedByTab.get(tabId) === hostname) return;
   lastCheckedByTab.set(tabId, hostname);
 
   console.log("[AutoPredict] Checking URL:", tab.url, "| Hostname:", hostname);
 
-  // Skip localhost and local development URLs
   if (isLocalhost(tab.url)) {
     console.log("[AutoPredict] Skipping localhost/local URL:", hostname);
     return;
   }
 
-  // Reset so same site can be rechecked later (per-tab, so other tabs are unaffected)
   setTimeout(() => {
     if (lastCheckedByTab.get(tabId) === hostname) {
       lastCheckedByTab.delete(tabId);
@@ -767,7 +702,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
       chrome.action.setBadgeText({ text: "!", tabId: tab.id });
       chrome.action.setBadgeBackgroundColor({ color: "#ff0000", tabId: tab.id });
 
-      // Show notification
       if (chrome.notifications) {
         chrome.notifications.create({
           type: "basic",
@@ -778,7 +712,6 @@ chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
         });
       }
 
-      // Automatically open extension in a popup window with prediction data (if enabled)
       if (settings.autoPopup) {
         try {
           const params = new URLSearchParams({
@@ -821,7 +754,6 @@ async function signup(data: SignupData) {
     const response = await axios.post("/signup", data);
     return response.data;
   } catch (error: any) {
-    // Extract error message from axios error response
     if (error.response?.data?.detail) {
       return error.response.data.detail;
     }
@@ -829,7 +761,6 @@ async function signup(data: SignupData) {
   }
 }
 
-// Fetch user's salt before login so we can derive the auth hash client-side
 async function preLogin(email: string): Promise<PreLoginResponse> {
   try {
     const response = await axios.post("/pre-login", { email });
@@ -842,13 +773,11 @@ async function preLogin(email: string): Promise<PreLoginResponse> {
   }
 }
 
-// Fix login function - sends auth_hash (never raw password)
 async function login(email: string, auth_hash: string) {
   try {
     const response = await axios.post("/login", { email, auth_hash });
     return response.data as LoginResponse;
   } catch (error: any) {
-    // Extract error message from axios error response
     if (error.response?.data?.detail) {
       return error.response.data.detail;
     }
@@ -856,7 +785,6 @@ async function login(email: string, auth_hash: string) {
   }
 }
 
-// Fix verifyOtp function - Handle axios errors properly
 async function verifyOtp(email: string, code: string) {
   try {
     const response = await axios.post("/verify-otp", { code, email });
@@ -869,13 +797,11 @@ async function verifyOtp(email: string, code: string) {
   }
 }
 
-// Fix getVault function - Handle axios errors properly
 async function getVault(): Promise<EncryptedPayload | null> {
   try {
     const response = await axios.get("/vault");
     return response.data.blob;
   } catch (error: any) {
-    // Extract error message from axios error response
     if (error.response?.data?.detail) {
       throw new Error(error.response.data.detail);
     }
@@ -883,13 +809,11 @@ async function getVault(): Promise<EncryptedPayload | null> {
   }
 }
 
-// Fix updateVault function - Handle axios errors properly
 async function updateVault(vaultData: EncryptedPayload) {
   try {
     const response = await axios.post("/vault", { blob: vaultData });
     return response.data;
   } catch (error: any) {
-    // Extract error message from axios error response
     if (error.response?.data?.detail) {
       throw new Error(error.response.data.detail);
     }
@@ -897,7 +821,6 @@ async function updateVault(vaultData: EncryptedPayload) {
   }
 }
 
-// Fix predictUrl function - Handle axios errors properly
 async function predictUrl(url: string) {
   try {
     const hostname = getHostname(url);
@@ -921,7 +844,6 @@ async function predictUrl(url: string) {
         console.log("[AutoBlock] ✓ Successfully added to blocklist:", hostname);
       } else if (settings.syncBlocklist && ACCESS_TOKEN) {
         if (await ensureMasterKey()) {
-          // Even if auto-block is off, update vault with prediction if sync is enabled
           console.log("[VaultSync] Updating vault with phishing detection:", hostname);
           await updateVaultWithPrediction(hostname, data.prediction, data.confidence);
         }
@@ -930,7 +852,6 @@ async function predictUrl(url: string) {
       }
     } else if (settings.syncBlocklist && settings.saveHistory && ACCESS_TOKEN) {
       if (await ensureMasterKey()) {
-        // For safe URLs, update vault history if both sync and history are enabled
         console.log("[VaultSync] Updating vault with safe URL history:", hostname);
         await updateVaultWithPrediction(hostname, data.prediction, data.confidence);
       }
@@ -945,7 +866,6 @@ async function predictUrl(url: string) {
       url: url
     });
     
-    // Extract error message from axios error response
     if (error.response?.data?.detail) {
       throw new Error(error.response.data.detail);
     }
@@ -953,7 +873,6 @@ async function predictUrl(url: string) {
   }
 }
 
-// Update vault with prediction data (for authenticated users with sync enabled)
 async function updateVaultWithPrediction(hostname: string, prediction: number, confidence: number) {
   try {
     if (!ACCESS_TOKEN) return;
@@ -962,7 +881,6 @@ async function updateVaultWithPrediction(hostname: string, prediction: number, c
     const normalizedHostname = getHostname(hostname);
     const now = new Date().toISOString();
     
-    // Get current vault
     let vaultItems: VaultItem[] = [];
     const cached = await getEncryptedVault();
     if (cached) {
@@ -978,7 +896,6 @@ async function updateVaultWithPrediction(hostname: string, prediction: number, c
       }
     }
 
-    // Find or create item
     let item = vaultItems.find(i => i.hostname === normalizedHostname);
     if (!item) {
       item = {
@@ -986,24 +903,20 @@ async function updateVaultWithPrediction(hostname: string, prediction: number, c
         hostname: normalizedHostname,
         createdAt: now,
         lastChecked: now,
-        isBlocked: false, // Blocking is controlled separately by autoBlock + addToBlocklist
+        isBlocked: false,
         prediction,
         confidence
       };
       vaultItems.push(item);
     } else {
-      // Update existing item — preserve its isBlocked state
       item.lastChecked = now;
       item.prediction = prediction;
       item.confidence = confidence;
     }
-
-    // Encrypt and update vault
     const encrypted = await encryptString(JSON.stringify(vaultItems), MASTER_USER_KEY);
     await updateVault(encrypted);
     await storeEncryptedVault(encrypted);
     
-    // Update local vault storage
     const settings = await getSettings();
     if (settings.syncBlocklist) {
       await saveVaultLocal(vaultItems);
@@ -1017,17 +930,14 @@ async function updateVaultWithPrediction(hostname: string, prediction: number, c
 
 async function getHistory(): Promise<VaultItem[]> {
   const vault = await getVaultLocal();
-  // Return all items that have prediction data (history)
   return vault.filter(item => item.prediction !== undefined);
 }
 
 async function addToHistory(item: VaultItem) {
   const vault = await getVaultLocal();
   
-  // Check if item already exists
   const existingIndex = vault.findIndex(v => v.hostname === item.hostname);
   if (existingIndex >= 0) {
-    // Update existing entry with new data
     vault[existingIndex] = {
       ...vault[existingIndex],
       ...item,
@@ -1037,10 +947,8 @@ async function addToHistory(item: VaultItem) {
     vault.push(item);
   }
   
-  // Keep only last 100 items in history
   const historyItems = vault.filter(v => v.prediction !== undefined);
   if (historyItems.length > 100) {
-    // Remove oldest non-blocked history items
     historyItems
       .filter(v => !v.isBlocked)
       .sort((a, b) => new Date(a.lastChecked).getTime() - new Date(b.lastChecked).getTime())
@@ -1056,7 +964,6 @@ async function addToHistory(item: VaultItem) {
 
 async function clearHistory() {
   const vault = await getVaultLocal();
-  // Keep blocked items, remove others
   const filtered = vault.filter(item => item.isBlocked);
   await saveVaultLocal(filtered);
 }
@@ -1064,8 +971,6 @@ async function clearHistory() {
 
 chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
   (async () => {
-    // Rehydrate tokens from session storage on every message — the MV3
-    // service worker can be killed between messages and global state lost.
     await restoreSession();
     console.log("Received message:", message.type, message.payload);
     try {
@@ -1085,7 +990,6 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
           const oldSettings = await getSettings();
           await setSettings(message.payload);
           
-          // If syncBlocklist was just enabled and user is authenticated
           if (!oldSettings.syncBlocklist && message.payload.syncBlocklist && MASTER_USER_KEY && ACCESS_TOKEN) {
             console.log("[Settings] Sync enabled - migrating and syncing data...");
             await syncVaultToServer();
@@ -1095,14 +999,12 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
           break;
         }
         
-        // ADD: Handle single setting update
         case "UPDATE_SETTING": {
           const currentSettings = await getSettings();
           const oldValue = currentSettings[message.payload.key];
           currentSettings[message.payload.key] = message.payload.value;
           await setSettings(currentSettings);
           
-          // If syncBlocklist was just enabled and user is authenticated
           if (message.payload.key === 'syncBlocklist' && !oldValue && message.payload.value && MASTER_USER_KEY && ACCESS_TOKEN) {
             console.log("[Settings] Sync enabled - migrating and syncing data...");
             await syncVaultToServer();
@@ -1115,10 +1017,7 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
         case "PREDICT_URL": {
           const result = await predictUrl(message.payload.url);
           
-          // Save to local history if saveHistory enabled (for all users)
           const settings = await getSettings();
-          // Only save to local history if NOT in authenticated+synced mode.
-          // Authenticated+synced users have their history recorded by predictUrl → updateVaultWithPrediction.
           if (settings.saveHistory && !(ACCESS_TOKEN && settings.syncBlocklist)) {
             await addToHistory({
               id: crypto.randomUUID(),
@@ -1130,8 +1029,6 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
               confidence: result.confidence
             });
           }
-          
-          // Note: Vault sync happens inside predictUrl() for authenticated users
           
           sendResponse({
             success: true,
@@ -1155,7 +1052,6 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
           break;
         }
 
-        // ADD: Handle UNBLOCK_URL (alias for REMOVE_FROM_BLOCKLIST)
         case "UNBLOCK_URL": {
           const host = message.payload.url;
           await removeFromBlocklist(host);
@@ -1179,11 +1075,8 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
           break;
         }
 
-        // ADD: History handlers
         case "GET_HISTORY": {
           const history = await getHistory();
-          
-          // Sort by most recent first
           history.sort((a, b) => {
             return new Date(b.lastChecked).getTime() - new Date(a.lastChecked).getTime();
           });
@@ -1219,24 +1112,21 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
         }
 
         case "SIGNUP": {
-          // 1. Generate vault-encryption salt and derive the wrapping key
           const salt = generateSalt();
           const enc_key = await deriveKeyFromPassword(
             message.payload.password,
             salt,
           );
-          // 2. Generate a random master key and encrypt it with the wrapping key
           const key = generateMasterKeyBytes();
           const enc_master_user_key = await encryptString(
             bufferToHex(key),
             enc_key,
           );
-          // 3. Derive auth hash client-side (argon2id or PBKDF2 fallback) using the same salt
           const auth_hash = await deriveAuthHash(message.payload.password, salt);
 
           const finalpayload: SignupData = {
             email: message.payload.email,
-            auth_hash,                // ZK: only the hash reaches the server
+            auth_hash,
             salt: bufferToHex(salt),
             enc_master_user_key,
           };
@@ -1252,7 +1142,6 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
         }
 
         case "LOGIN": {
-          // 1. Fetch user's salt from server (public, no auth required)
           let saltHex: string;
           try {
             const preLoginData = await preLogin(message.payload.email);
@@ -1262,11 +1151,9 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
             break;
           }
 
-          // 2. Derive auth hash client-side using the same algorithm as signup
           const loginSalt = hexToBuffer(saltHex);
           const auth_hash = await deriveAuthHash(message.payload.password, loginSalt);
 
-          // 3. Authenticate with the server (sends auth_hash, never raw password)
           const logindata: LoginResponse | string = await login(
             message.payload.email,
             auth_hash,
@@ -1274,7 +1161,6 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
           if (typeof logindata !== "string") {
             await setAccessToken(logindata.access_token);
             await setRefreshToken(logindata.refresh_token);
-            // 4. Derive vault encryption key client-side from the original password
             const derivedKey = await deriveKeyFromPassword(
               message.payload.password,
               loginSalt,
@@ -1286,10 +1172,8 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
             const masterKeyBytes = hexToBuffer(masterKeyHex);
             MASTER_USER_KEY = await importMasterKey(masterKeyBytes);
             
-            // Store master key securely in session storage
             await storeMasterKey(MASTER_USER_KEY);
             
-            // After successful login, sync vault from server if syncBlocklist is enabled
             const settings = await getSettings();
             if (settings.syncBlocklist) {
               console.log("[Login] Syncing vault data from server...");
@@ -1335,9 +1219,7 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
 
         case "LOGOUT":
           await clearSession();
-          // Clear encrypted storage on logout for security
           await chrome.storage.local.remove(["vault_local_enc", "vault_local", "blocklist_enc", "history_enc", "blocklist", "history"]);
-          // Clear master key from session storage
           await chrome.storage.session.remove("masterKeyJWK");
           sendResponse({ success: true });
           break;
@@ -1354,12 +1236,9 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
   return true;
 });
 
-/* ============================================
-   INIT
-============================================ */
+
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === "install") {
-    // Only initialize defaults on first install — updates must NOT reset user data
     await chrome.storage.local.set({
       vault_local: [], // Unified vault storage
       settings: { 
@@ -1377,18 +1256,14 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   console.log("[Init] Extension ready");
 });
 
-/* ============================================
-   STARTUP - Restore session and migrate data if needed
-============================================ */
+
 chrome.runtime.onStartup.addListener(async () => {
   try {
-    // Restore access + refresh tokens and axios header from session storage
     await restoreSession();
 
     if (ACCESS_TOKEN) {
       console.log("[Startup] Session restored — access token available");
 
-      // Try to restore master key from session storage
       MASTER_USER_KEY = await restoreMasterKey();
       if (MASTER_USER_KEY) {
         console.log("[Startup] ✓ Master key restored - sync enabled");
@@ -1400,7 +1275,6 @@ chrome.runtime.onStartup.addListener(async () => {
       console.log("[Startup] No active session found");
     }
 
-    // Restore blocking rules (will use encrypted storage if available)
     await updateBlockingRules();
     console.log("[Startup] Blocking rules restored");
   } catch (error) {

@@ -7,14 +7,11 @@ export interface EncryptedPayload {
   v: number;
 }
 
-/* ===========================
-   KEY DERIVATION
-=========================== */
 export async function deriveKeyFromPassword(
   password: string,
   salt: Uint8Array
 ): Promise<CryptoKey> {
-  const enc = new TextEncoder();
+  const enc = new   TextEncoder();
 
   const keyMaterial = await CRYPTO.subtle.importKey(
     "raw",
@@ -38,9 +35,6 @@ export async function deriveKeyFromPassword(
   );
 }
 
-/* ===========================
-   RANDOM GENERATORS
-=========================== */
 export function generateSalt(length = 16): Uint8Array {
   return CRYPTO.getRandomValues(new Uint8Array(length));
 }
@@ -49,17 +43,7 @@ export function generateMasterKeyBytes(length = 32): Uint8Array {
   return CRYPTO.getRandomValues(new Uint8Array(length));
 }
 
-/* ===========================
-   AUTH HASH DERIVATION
-   Client-side only — never expose raw password to server.
 
-   Primary:  argon2id via hash-wasm (WASM inlined as base64 in the
-             bundle — no fetch needed, works in MV3 service workers).
-             Params: 64 MiB memory, 3 iterations, parallelism=1.
-
-   Fallback: PBKDF2-HMAC-SHA256 (600,000 iterations) via native
-             WebCrypto, used if WASM instantiation fails.
-=========================== */
 async function deriveAuthHashPBKDF2(password: string, salt: Uint8Array): Promise<string> {
   const enc = new TextEncoder();
   const keyMaterial = await CRYPTO.subtle.importKey(
@@ -83,26 +67,20 @@ export async function deriveAuthHash(
 ): Promise<string> {
   try {
     // hash-wasm inlines the WASM binary as base64 — no fetch() call at runtime.
-    // Requires 'wasm-unsafe-eval' in the extension CSP (added to manifest.json).
     return await argon2id({
       password,
       salt,
       parallelism: 1,
       iterations: 3,
-      memorySize: 65536, // 64 MiB
+      memorySize: 65536,
       hashLength: 32,
       outputType: "hex",
     });
   } catch {
-    // Fallback: WASM blocked or unavailable in this runtime context
-    console.warn("[Crypto] argon2id (hash-wasm) unavailable, using PBKDF2-SHA256 fallback");
     return deriveAuthHashPBKDF2(password, salt);
   }
 }
 
-/* ===========================
-   CONVERSIONS
-=========================== */
 export function bufferToHex(buffer: Uint8Array): string {
   return Array.from(buffer)
     .map((b) => b.toString(16).padStart(2, "0"))
@@ -115,9 +93,7 @@ export function hexToBuffer(hex: string): Uint8Array {
   return new Uint8Array(matches.map((b) => parseInt(b, 16)));
 }
 
-/* ===========================
-   MASTER KEY IMPORT
-=========================== */
+
 export async function importMasterKey(
   rawBytes: Uint8Array
 ): Promise<CryptoKey> {
@@ -130,9 +106,6 @@ export async function importMasterKey(
   );
 }
 
-/* ===========================
-   MASTER KEY EXPORT/IMPORT (for session storage)
-=========================== */
 export async function exportMasterKey(key: CryptoKey): Promise<JsonWebKey> {
   return CRYPTO.subtle.exportKey("jwk", key);
 }
@@ -147,9 +120,6 @@ export async function importMasterKeyFromJWK(jwk: JsonWebKey): Promise<CryptoKey
   );
 }
 
-/* ===========================
-   ENCRYPTION
-=========================== */
 export async function encryptString(
   plaintext: string,
   key: CryptoKey

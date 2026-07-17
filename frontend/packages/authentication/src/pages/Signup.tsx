@@ -65,8 +65,8 @@ const handleSignup = async () => {
   if (response?.success === true) {
     setAlert({ type: "success", msg: "Signed up successfully! Please check your email for OTP verification." });
     setTimeout(() => {
-      navigate("/otp"); // FIX: Changed from /verify-otp to /otp
-    }, 2000); // FIX: Reduced timeout to 2 seconds
+      navigate("/otp"); 
+    }, 2000); 
   } else {
     console.log(response);
     setAlert({ type: "error", msg: response?.error || "Signup failed. Please try again." });

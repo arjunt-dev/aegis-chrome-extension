@@ -23,10 +23,10 @@ export interface VaultItem {
   id: string;
   hostname: string;
   createdAt: string;
-  lastChecked: string; // Last time this item was checked/updated
-  isBlocked: boolean; // Whether this site is blocked
-  prediction?: number; // Prediction result: 1 = phishing, -1 = safe
-  confidence?: number; // Confidence score
+  lastChecked: string;
+  isBlocked: boolean;
+  prediction?: number;
+  confidence?: number;
 }
 
 export interface EncryptedPayload {
@@ -36,7 +36,6 @@ export interface EncryptedPayload {
 }
 export interface SignupData {
   email: string;
-  /** Client-side derived hash (argon2id or PBKDF2). Never the raw password. */
   auth_hash: string;
   salt: string;
   enc_master_user_key: EncryptedPayload;
