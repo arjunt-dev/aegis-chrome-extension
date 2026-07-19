@@ -22,7 +22,6 @@ security = HTTPBearer(auto_error=True)
 @router.post(
     "/pre-login",
     response_model=PreLoginResponse,
-    dependencies=[Depends(RateLimiter(times=10, seconds=60))],
     summary="Fetch the PBKDF2 salt for a given email so the client can derive its auth hash.",
 )
 async def pre_login(data: PreLoginRequest):
@@ -45,7 +44,6 @@ async def pre_login(data: PreLoginRequest):
     "/signup",
     response_model=SignupResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(RateLimiter(times=5, seconds=300))],
 )
 async def signup(data: SignupRequest):
     """
@@ -186,8 +184,7 @@ async def update_vault(
         raise HTTPException(500)
 
 
-@router.post("/predict", response_model=PredictionResponse,
-             dependencies=[Depends(RateLimiter(times=20, seconds=60))])
+@router.post("/predict", response_model=PredictionResponse, status_code=status.HTTP_200_OK)
 async def predict(data: PredictionRequest):
     try:
         result = predict_url(str(data.url))

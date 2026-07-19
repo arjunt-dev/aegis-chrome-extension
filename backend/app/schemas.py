@@ -61,5 +61,5 @@ class PredictionRequest(BaseModel):
 
 
 class PredictionResponse(BaseModel):
-    prediction: int
+    prediction: str
     confidence: float | None = None

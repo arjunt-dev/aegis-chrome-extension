@@ -1,3 +1,5 @@
+import json
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -8,7 +10,6 @@ from dotenv import load_dotenv
 import os
 from app.tasks import cleanup_expired_otps
 from fastapi_mail import ConnectionConfig
-from fastapi_limiter import FastAPILimiter
 from redis.asyncio import Redis
 from app.logging_config import setup_logger,logger
 
@@ -47,12 +48,6 @@ async def lifespan(app: FastAPI):
     logger.info("Starting up... Initializing database.")
     await init_db()
     logger.info("Database initialized.")
-    logger.info("Setting up Rate Limiter with Redis.")
-    redis = await Redis.from_url(
-        os.getenv("REDIS_URL", "redis://localhost:6379"), encoding="utf8", decode_responses=True
-    )
-    logger.info("Initializing Rate Limiter with Redis.")
-    await FastAPILimiter.init(redis)
     scheduler.add_job(cleanup_expired_otps,
     "interval",
     minutes=5,
@@ -96,6 +91,36 @@ def load_model(model_path):
         logger.error(f"Error loading model: {e}")
         return None
 
-BASE_MODEL = load_model(os.path.join(BASE_DIR, "phishing_model","Base_Ensemble.joblib"))
-META_MODEL = load_model(os.path.join(BASE_DIR, "phishing_model","Meta_LR.joblib"))
+def load_data(json_path, domain_path):
+    try:
+        with open(json_path, "r") as f:
+            data = json.load(f)
+            brand_data = data.get("brands", {})
+            suspicious_keywords = set(data.get("suspicious_keywords", []))
+            url_shorteners = set(data.get("url_shorteners", []))
+            popular_tlds = set(data.get("tlds", []))
+        with open(domain_path, "r") as f:
+            known_domains = set(line.strip() for line in f if line.strip())
+
+        return {
+            "brand_data": brand_data,
+            "suspicious_keywords": suspicious_keywords,
+            "url_shorteners": url_shorteners,
+            "popular_tlds": popular_tlds,
+            "known_domains": known_domains
+        }
+    except Exception as e:
+        logger.error(f"Error loading JSON data: {e}")
+        return {
+            "brand_data": {},
+            "suspicious_keywords": set(),
+            "url_shorteners": set(),
+            "popular_tlds": set(),
+            "known_domains": set()
+        }
+BASE_MODEL = load_model(os.path.join(BASE_DIR, "phishing_model","aegis_model.joblib"))
 MAX_URL_LENGTH = 2048
+data_json_path = os.path.join(BASE_DIR, "phishing_model", "data.json")
+known_domains_path = os.path.join(BASE_DIR, "phishing_model", "known_domains.txt")
+DATA_JSON = load_data(data_json_path, known_domains_path)
+MIN_BRAND_LEN_FOR_FUZZY = 4
