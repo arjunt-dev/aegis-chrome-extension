@@ -9,7 +9,7 @@ export interface PredictRequest {
 }
 
 export interface PredictResponse {
-  prediction: number;
+  prediction: PredictionLabel;
   confidence: number;
 }
 

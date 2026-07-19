@@ -22,15 +22,6 @@ function extractDomain(url: string): string {
   }
 }
 
-function normalizePrediction(raw: number) {
-  const predictionMap: Record<number, PredictionLabel> = {
-    [-1]: 'safe',
-    [0]: 'suspicious',
-    [1]: 'phishing'
-  };
-  return predictionMap[raw]
-}
-
 export async function analyzeUrl(url: string): Promise<AnalysisResult> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
@@ -59,7 +50,7 @@ export async function analyzeUrl(url: string): Promise<AnalysisResult> {
     return {
       url,
       domain: extractDomain(url),
-      prediction: normalizePrediction(data.prediction),
+      prediction: data.prediction.toLowerCase() as PredictionLabel,
       confidence: Math.min(Math.max(data.confidence, 0), 1), // clamp 0–1
       timestamp: Date.now(),
     };
