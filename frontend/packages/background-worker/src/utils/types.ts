@@ -1,5 +1,6 @@
 import { Url } from "url";
 
+export type PredictionLabel = 'Safe' | 'Suspicious' | 'Phishing' | 'Unknown';
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
@@ -7,7 +8,7 @@ export interface ApiResponse<T = any> {
 }
 
 export interface PredictionResult {
-  prediction: number;
+  prediction: PredictionLabel;
   confidence: number;
 }
 
@@ -25,7 +26,7 @@ export interface VaultItem {
   createdAt: string;
   lastChecked: string;
   isBlocked: boolean;
-  prediction?: number;
+  prediction?: PredictionLabel;
   confidence?: number;
 }
 

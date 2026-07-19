@@ -4,10 +4,17 @@ import Navbar from "../components/Navbar";
 import CircularProgress from "../components/CircularProgress";
 import { extensionApi, sendMessageToBackground } from "../api";
 
+type PredictionLabel = "Safe" | "Suspicious" | "Phishing" | "Unknown";
+const PredictionLabelMap: Record<PredictionLabel, string> = {
+  Safe: "text-green-400",
+  Suspicious: "text-yellow-400",
+  Phishing: "text-red-400",
+  Unknown: "text-gray-400"
+};
 export default function Home() {
   const [url, setUrl] = useState("");
   const [prediction, setPrediction] = useState<number | null>(null);
-  const [risk, setRisk] = useState<number | null>(null); // -1: safe, 0: suspicious, 1: phishing
+  const [risk, setRisk] = useState<PredictionLabel | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isBlocked, setIsBlocked] = useState(false);
@@ -31,10 +38,9 @@ export default function Home() {
         const confidenceParam = params.get('confidence');
 
         if (autoDetected === 'true' && urlParam && predictionParam && confidenceParam) {
-          // Auto-detected phishing - display the prediction immediately
           const baseUrl = getBaseUrl(urlParam);
           setUrl(baseUrl);
-          setRisk(parseInt(predictionParam));
+          setRisk(predictionParam as PredictionLabel);
           setPrediction(parseFloat(confidenceParam) * 100);
           
           // Check if already blocked
@@ -99,7 +105,7 @@ export default function Home() {
 
       const { prediction: pred, confidence } = response;
       console.log("Prediction result:", pred, confidence);
-      setRisk(pred);
+      setRisk(pred as PredictionLabel);
       setPrediction(confidence * 100);
       if (!url.trim()) {
         setUrl(urlToPredict);
@@ -202,15 +208,9 @@ export default function Home() {
           <div className="mt-8">
             <CircularProgress value={parseFloat(prediction.toFixed(2))} />
             <div className="text-center mt-4">
-              {risk === 1 ? (
-                <p className="text-red-400 text-lg font-semibold">Phishing</p>
-              ) : risk === -1 ? (
-                <p className="text-green-400 text-lg font-semibold">Safe</p>
-              ) : (
-                <p className="text-yellow-400 text-lg font-semibold">
-                  Suspicious
-                </p>
-              )}
+              <p className={`text-lg font-semibold ${PredictionLabelMap[risk]}`}>
+                {risk}
+              </p>
             </div>
           </div>
         )}

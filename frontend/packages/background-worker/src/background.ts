@@ -19,7 +19,10 @@ import {
   VaultItem,
   EncryptedPayload,
   PreLoginResponse,
+  PredictionLabel,
 } from "./utils/types";
+
+
 
 
 const API_BASE_URL = "http://localhost:5000/api";
@@ -535,7 +538,7 @@ async function isBlocked(hostname: string): Promise<boolean> {
   return list.some((i) => i.hostname === normalizedHostname);
 }
 
-async function addToBlocklist(hostname: string, predictionData?: { prediction: number, confidence: number }) {
+async function addToBlocklist(hostname: string, predictionData?: { prediction: PredictionLabel, confidence: number }) {
   const normalizedHostname = getHostname(hostname);
   const vault = await getVaultLocal();
   
@@ -697,7 +700,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
     }
   
 
-    if (result.prediction === 1) {
+    if (result.prediction === "phishing") {
       console.log("[AutoPredict]  PHISHING DETECTED:", hostname);
       chrome.action.setBadgeText({ text: "!", tabId: tab.id });
       chrome.action.setBadgeBackgroundColor({ color: "#ff0000", tabId: tab.id });
@@ -832,20 +835,21 @@ async function predictUrl(url: string) {
     }
 
     const { data } = await axios.post("/predict", { url });
+    const prediction = normalizePredictionLabel(data.prediction);
     console.log("[Predict] Response:", data);
 
     const settings = await getSettings();
-    console.log("[Predict] Result for", hostname, "is", data.prediction, "(confidence:", data.confidence, ")");
+    console.log("[Predict] Result for", hostname, "is", prediction, "(confidence:", data.confidence, ")");
 
-    if (data.prediction === 1) {
+    if (prediction === "phishing") {
       if (settings.autoBlock) {
         console.log("[AutoBlock]  Auto-blocking enabled - adding to blocklist:", hostname);
-        await addToBlocklist(hostname, { prediction: data.prediction, confidence: data.confidence });
+        await addToBlocklist(hostname, { prediction, confidence: data.confidence });
         console.log("[AutoBlock] ✓ Successfully added to blocklist:", hostname);
       } else if (settings.syncBlocklist && ACCESS_TOKEN) {
         if (await ensureMasterKey()) {
           console.log("[VaultSync] Updating vault with phishing detection:", hostname);
-          await updateVaultWithPrediction(hostname, data.prediction, data.confidence);
+          await updateVaultWithPrediction(hostname, prediction, data.confidence);
         }
       } else {
         console.log("[AutoBlock] Auto-blocking disabled in settings");
@@ -853,11 +857,14 @@ async function predictUrl(url: string) {
     } else if (settings.syncBlocklist && settings.saveHistory && ACCESS_TOKEN) {
       if (await ensureMasterKey()) {
         console.log("[VaultSync] Updating vault with safe URL history:", hostname);
-        await updateVaultWithPrediction(hostname, data.prediction, data.confidence);
+        await updateVaultWithPrediction(hostname, prediction, data.confidence);
       }
     }
 
-    return data;
+    return {
+      ...data,
+      prediction,
+    };
   } catch (error: any) {
     console.error("[Predict]  Error details:", {
       message: error.message,
@@ -873,7 +880,7 @@ async function predictUrl(url: string) {
   }
 }
 
-async function updateVaultWithPrediction(hostname: string, prediction: number, confidence: number) {
+async function updateVaultWithPrediction(hostname: string, prediction: PredictionLabel, confidence: number) {
   try {
     if (!ACCESS_TOKEN) return;
     if (!await ensureMasterKey()) return;

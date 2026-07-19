@@ -3,13 +3,21 @@ import { Trash2, History, RefreshCw } from "lucide-react";
 import Navbar from "../components/Navbar";
 import IconButton from "../components/IconButton";
 
+type PredictionLabel = "Safe" | "Suspicious" | "Phishing" | "Unknown";
+
+const PredictionLabelMap: Record<PredictionLabel, string> = {
+  Safe: "text-green-400",
+  Suspicious: "text-yellow-400",
+  Phishing: "text-red-400",
+  Unknown: "text-gray-400"
+};
 interface HistoryItem {
   id: string;
   hostname: string;
   createdAt: string;
   lastChecked: string;
   isBlocked: boolean;
-  prediction?: number;
+  prediction?: PredictionLabel;
   confidence?: number;
 }
 
@@ -63,18 +71,6 @@ export default function PredictionHistory() {
     }
   };
 
-  const getResultLabel = (prediction?: number) => {
-    if (prediction === undefined) return 'Unknown';
-    if (prediction === 1) return 'Phishing';
-    if (prediction === -1) return 'Safe';
-    return 'Suspicious';
-  };
-
-  const getResultColor = (prediction?: number) => {
-    if (prediction === 1) return 'text-red-400';
-    if (prediction === -1) return 'text-green-400';
-    return 'text-yellow-400';
-  };
 
   return (
     <div className="min-h-screen w-full bg-primary text-gray-200 px-4 py-6">
@@ -135,8 +131,8 @@ export default function PredictionHistory() {
               {history.map((item) => (
                 <tr key={item.id} className="border-b border-gray-800">
                   <td className="py-2 px-2">
-                    <span className={`font-semibold ${getResultColor(item.prediction)}`}>
-                      {getResultLabel(item.prediction)}
+                    <span className={`font-semibold ${PredictionLabelMap[item.prediction as PredictionLabel]}`}>
+                      {item.prediction || 'Unknown'}
                     </span>
                   </td>
                   <td className="py-2 px-2 font-mono text-xs">{item.hostname}</td>
