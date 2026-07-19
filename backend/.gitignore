@@ -12,3 +12,4 @@ aerich/
 .env
 # .env.*
 logs/
+catboost_info/
