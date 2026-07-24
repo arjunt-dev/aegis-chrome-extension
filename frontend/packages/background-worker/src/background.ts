@@ -835,7 +835,7 @@ async function predictUrl(url: string) {
     }
 
     const { data } = await axios.post("/predict", { url });
-    const prediction = normalizePredictionLabel(data.prediction);
+    const prediction = data.prediction as PredictionLabel;
     console.log("[Predict] Response:", data);
 
     const settings = await getSettings();

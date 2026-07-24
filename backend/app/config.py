@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 import os
 from app.tasks import cleanup_expired_otps
 from fastapi_mail import ConnectionConfig
-from redis.asyncio import Redis
 from app.logging_config import setup_logger,logger
 
 load_dotenv()
@@ -118,7 +117,7 @@ def load_data(json_path, domain_path):
             "popular_tlds": set(),
             "known_domains": set()
         }
-BASE_MODEL = load_model(os.path.join(BASE_DIR, "phishing_model","aegis_model.joblib"))
+BASE_MODEL = load_model(os.path.join(BASE_DIR, "phishing_model","aegis_ensemble_model.joblib"))
 MAX_URL_LENGTH = 2048
 data_json_path = os.path.join(BASE_DIR, "phishing_model", "data.json")
 known_domains_path = os.path.join(BASE_DIR, "phishing_model", "known_domains.txt")
