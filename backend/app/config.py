@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 import joblib
 from pydantic import SecretStr
-from tortoise import Tortoise
+from tortoise.contrib.fastapi import RegisterTortoise
 from dotenv import load_dotenv
 import os
 from app.tasks import cleanup_expired_otps
@@ -31,33 +31,33 @@ TORTOISE_ORM = {
     },
 }
 
-async def init_db():
-    try:
-        await Tortoise.init(config=TORTOISE_ORM)
-        await Tortoise.generate_schemas()
-    except Exception as e:
-        logger.error(f"Error initializing database: {e}")
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Manages application startup and shutdown events.
+    Uses RegisterTortoise (Tortoise ORM 1.x) which injects TortoiseContext
+    per-request via ASGI middleware, replacing the old global Tortoise.init() pattern.
     """
     setup_logger()
     logger.info("Starting up... Initializing database.")
-    await init_db()
-    logger.info("Database initialized.")
-    scheduler.add_job(cleanup_expired_otps,
-    "interval",
-    minutes=5,
-    id="otp_cleanup_job",
-    replace_existing=True,
-    max_instances=1)
-    scheduler.start()
-    yield 
-    scheduler.shutdown()
-    logger.info("Shutting down... Closing database connections.")
-    await Tortoise.close_connections()
+    async with RegisterTortoise(
+        app=app,
+        config=TORTOISE_ORM,
+        generate_schemas=True,
+    ):
+        logger.info("Database initialized.")
+        scheduler.add_job(
+            cleanup_expired_otps,
+            "interval",
+            minutes=5,
+            id="otp_cleanup_job",
+            replace_existing=True,
+            max_instances=1,
+        )
+        scheduler.start()
+        yield
+        scheduler.shutdown()
+        logger.info("Shutting down... Closing database connections.")
 
 AUTH_USER_MODEL = "models.User"
 TIMEZONE = "Asia/Kolkata"
@@ -90,7 +90,7 @@ def load_model(model_path):
         logger.error(f"Error loading model: {e}")
         return None
 
-def load_data(json_path, domain_path):
+def load_data(json_path):
     try:
         with open(json_path, "r") as f:
             data = json.load(f)
@@ -98,15 +98,12 @@ def load_data(json_path, domain_path):
             suspicious_keywords = set(data.get("suspicious_keywords", []))
             url_shorteners = set(data.get("url_shorteners", []))
             popular_tlds = set(data.get("tlds", []))
-        with open(domain_path, "r") as f:
-            known_domains = set(line.strip() for line in f if line.strip())
 
         return {
             "brand_data": brand_data,
             "suspicious_keywords": suspicious_keywords,
             "url_shorteners": url_shorteners,
             "popular_tlds": popular_tlds,
-            "known_domains": known_domains
         }
     except Exception as e:
         logger.error(f"Error loading JSON data: {e}")
@@ -115,11 +112,9 @@ def load_data(json_path, domain_path):
             "suspicious_keywords": set(),
             "url_shorteners": set(),
             "popular_tlds": set(),
-            "known_domains": set()
         }
 BASE_MODEL = load_model(os.path.join(BASE_DIR, "phishing_model","aegis_ensemble_model.joblib"))
 MAX_URL_LENGTH = 2048
 data_json_path = os.path.join(BASE_DIR, "phishing_model", "data.json")
-known_domains_path = os.path.join(BASE_DIR, "phishing_model", "known_domains.txt")
-DATA_JSON = load_data(data_json_path, known_domains_path)
-MIN_BRAND_LEN_FOR_FUZZY = 4
+DATA_JSON = load_data(data_json_path)
+MIN_BRAND_LEN_FOR_FUZZY = 5

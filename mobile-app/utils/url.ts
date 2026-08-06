@@ -35,9 +35,10 @@ export function formatConfidence(confidence: number): string {
   return `${(confidence * 100).toFixed(1)}%`;
 }
 
-export function getPredictionColor(prediction: PredictionLabel): string {
-  switch (prediction) {
+export function getPredictionColor(prediction: PredictionLabel | string): string {
+  switch (prediction.toLowerCase()) {
     case 'safe':
+    case 'legitimate':
       return Colors.safe;
     case 'suspicious':
       return Colors.suspicious;
@@ -48,9 +49,10 @@ export function getPredictionColor(prediction: PredictionLabel): string {
   }
 }
 
-export function getPredictionDimColor(prediction: PredictionLabel): string {
-  switch (prediction) {
+export function getPredictionDimColor(prediction: PredictionLabel | string): string {
+  switch (prediction.toLowerCase()) {
     case 'safe':
+    case 'legitimate':
       return Colors.safeDim;
     case 'suspicious':
       return Colors.suspiciousDim;
@@ -61,9 +63,10 @@ export function getPredictionDimColor(prediction: PredictionLabel): string {
   }
 }
 
-export function getPredictionBorderColor(prediction: PredictionLabel): string {
-  switch (prediction) {
+export function getPredictionBorderColor(prediction: PredictionLabel | string): string {
+  switch (prediction.toLowerCase()) {
     case 'safe':
+    case 'legitimate':
       return Colors.safeBorder;
     case 'suspicious':
       return Colors.suspiciousBorder;
@@ -74,7 +77,8 @@ export function getPredictionBorderColor(prediction: PredictionLabel): string {
   }
 }
 
-export function getPredictionLabel(prediction: PredictionLabel): string {
+export function getPredictionLabel(prediction: PredictionLabel | string): string {
+  if (prediction.toLowerCase() === 'legitimate') return 'SAFE';
   return prediction.toUpperCase();
 }
 

@@ -16,7 +16,6 @@ tlds = set(DATA_JSON.get("popular_tlds", []))
 brand_data = DATA_JSON.get("brand_data", {})
 suspicious_keywords = set(DATA_JSON.get("suspicious_keywords", []))
 url_shorteners = set(DATA_JSON.get("url_shorteners", []))
-known_domains_snapshot = set(DATA_JSON.get("known_domains", []))
 def shannon_entropy(s):
     if not s:
         return 0.0
@@ -190,7 +189,6 @@ def extract_features_from_url(url: str):
 
     
     registered_domain = f"{domain}.{suffix}" if suffix else domain
-    is_known_domain = int(registered_domain in known_domains_snapshot)
 
     return {
         "url_length": url_length,
@@ -229,8 +227,6 @@ def extract_features_from_url(url: str):
         "brand_phishing_rank": brand_phishing_rank,
         "known_phishing_domain_similarity": known_phishing_domain_similarity,
         "brand_similarity": brand_similarity,
-        
-        "is_known_domain": is_known_domain,
     }
 
 def predict_url(url: str):   

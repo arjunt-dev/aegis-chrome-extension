@@ -317,10 +317,10 @@ export default function UrlAnalysisScreen() {
   // ─── Success ─────────────────────────────────────────────────────────────────
   if (status === 'success' && result) {
     const { prediction, confidence } = result;
-    const pred = prediction as PredictionLabel;
+    const pred = prediction.toLowerCase();
     const isPhishing = pred === 'phishing';
     const isSuspicious = pred === 'suspicious';
-    const isSafe = pred === 'safe';
+    const isSafe = pred === 'safe' || pred === 'legitimate';
 
     const bannerBgColor = isPhishing
       ? Colors.accentRedDim

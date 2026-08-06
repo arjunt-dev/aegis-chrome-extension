@@ -47,10 +47,13 @@ export async function analyzeUrl(url: string): Promise<AnalysisResult> {
     }
 
     const data: PredictResponse = await response.json();
+    const rawLabel = data.prediction.toLowerCase();
+    const prediction = (rawLabel === 'legitimate' ? 'safe' : rawLabel) as PredictionLabel;
+
     return {
       url,
       domain: extractDomain(url),
-      prediction: data.prediction.toLowerCase() as PredictionLabel,
+      prediction,
       confidence: Math.min(Math.max(data.confidence, 0), 1), // clamp 0–1
       timestamp: Date.now(),
     };

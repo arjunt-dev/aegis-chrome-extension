@@ -247,25 +247,18 @@ async function syncVaultToServer() {
     const localVault = await getVaultLocal();
     console.log("[VaultSync] Syncing", localVault.length, "items to server");
 
+    // Always fetch live from server — never use the session cache here.
+    // Using a stale session-local cache would silently overwrite changes
+    // made by another browser (Chrome vs Brave) since the last sync.
     let remoteVault: VaultItem[] = [];
-    const cached = await getEncryptedVault();
-    if (cached) {
-      if (!MASTER_USER_KEY) {
-        console.log("[VaultSync] Master key cleared during cached vault retrieval");
-        return;
-      }
-      const decrypted = await decryptString(cached, MASTER_USER_KEY);
+    const remote = await getVault();
+    if (!MASTER_USER_KEY) {
+      console.log("[VaultSync] Master key cleared during remote vault retrieval");
+      return;
+    }
+    if (remote) {
+      const decrypted = await decryptString(remote, MASTER_USER_KEY);
       remoteVault = JSON.parse(decrypted);
-    } else {
-      const remote = await getVault();
-      if (!MASTER_USER_KEY) {
-        console.log("[VaultSync] Master key cleared during remote vault retrieval");
-        return;
-      }
-      if (remote) {
-        const decrypted = await decryptString(remote, MASTER_USER_KEY);
-        remoteVault = JSON.parse(decrypted);
-      }
     }
 
     const merged = mergeVaultItems(localVault, remoteVault);
@@ -277,7 +270,7 @@ async function syncVaultToServer() {
     
     await saveVaultLocal(merged);
     await updateBlockingRules();
-    
+      
     console.log("[VaultSync] ✓ Successfully synced to server");
   } catch (error) {
     console.error("[VaultSync]  Failed to sync:", error);
@@ -700,10 +693,16 @@ chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
     }
   
 
-    if (result.prediction === "phishing") {
+    if (result.prediction === "Phishing") {
       console.log("[AutoPredict]  PHISHING DETECTED:", hostname);
       chrome.action.setBadgeText({ text: "!", tabId: tab.id });
       chrome.action.setBadgeBackgroundColor({ color: "#ff0000", tabId: tab.id });
+
+      // Skip popup if autoBlock already handled it (URL is now blocked/redirected)
+      if ((result as any).autoBlocked) {
+        console.log("[AutoPredict] URL was auto-blocked — skipping popup");
+        return;
+      }
 
       if (chrome.notifications) {
         chrome.notifications.create({
@@ -841,11 +840,13 @@ async function predictUrl(url: string) {
     const settings = await getSettings();
     console.log("[Predict] Result for", hostname, "is", prediction, "(confidence:", data.confidence, ")");
 
-    if (prediction === "phishing") {
+    if (prediction === "Phishing") {
       if (settings.autoBlock) {
         console.log("[AutoBlock]  Auto-blocking enabled - adding to blocklist:", hostname);
         await addToBlocklist(hostname, { prediction, confidence: data.confidence });
         console.log("[AutoBlock] ✓ Successfully added to blocklist:", hostname);
+        // Signal to callers that we auto-blocked so they can skip the popup
+        return { ...data, prediction, autoBlocked: true };
       } else if (settings.syncBlocklist && ACCESS_TOKEN) {
         if (await ensureMasterKey()) {
           console.log("[VaultSync] Updating vault with phishing detection:", hostname);
@@ -1247,20 +1248,34 @@ chrome.runtime.onMessage.addListener((message, _, sendResponse) => {
 chrome.runtime.onInstalled.addListener(async (details) => {
   if (details.reason === "install") {
     await chrome.storage.local.set({
-      vault_local: [], // Unified vault storage
-      settings: { 
-        autoPredict: false, 
+      vault_local: [],
+      settings: {
+        autoPredict: true,
         autoBlock: false,
-        autoPopup: false,
-        saveHistory: false, 
-        syncBlocklist: false 
+        autoPopup: true,
+        saveHistory: false,
+        syncBlocklist: false
       },
     });
     console.log("[Init] First install — storage initialized");
   }
+  chrome.alarms.create("periodicVaultSync", { periodInMinutes: 5 });
 
   await updateBlockingRules();
   console.log("[Init] Extension ready");
+});
+
+chrome.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name === "periodicVaultSync") {
+    const settings = await getSettings();
+    if (!settings.syncBlocklist) return;
+    await restoreSession();
+    if (!ACCESS_TOKEN) return;
+    MASTER_USER_KEY = MASTER_USER_KEY || await restoreMasterKey();
+    if (!MASTER_USER_KEY) return;
+    console.log("[PeriodicSync] Pulling latest vault from server...");
+    await syncVaultFromServer();
+  }
 });
 
 
@@ -1281,6 +1296,9 @@ chrome.runtime.onStartup.addListener(async () => {
     } else {
       console.log("[Startup] No active session found");
     }
+
+    // Re-register the periodic alarm in case it was cleared (e.g. extension update)
+    chrome.alarms.create("periodicVaultSync", { periodInMinutes: 5 });
 
     await updateBlockingRules();
     console.log("[Startup] Blocking rules restored");
